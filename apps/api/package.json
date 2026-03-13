@@ -1,0 +1,21 @@
+{
+  "name": "amap-api",
+  "version": "0.0.1",
+  "description": "A-MAP API Cloudflare Worker",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "engines": { "node": ">=18.0.0" }
+}

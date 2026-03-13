@@ -1,0 +1,11 @@
+{
+  "name": "amap-dashboard",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "echo 'dashboard: Phase 3 stub, skipping build'",
+    "start": "next start",
+    "typecheck": "echo 'dashboard: Phase 3 stub, skipping typecheck'",
+    "lint": "next lint"
+  }
+}

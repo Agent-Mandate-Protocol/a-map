@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-mandate-protocol"
+version = "0.0.1"
+description = "Capability-based authorization for AI agents — Python SDK"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/amap"]
