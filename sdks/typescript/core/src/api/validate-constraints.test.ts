@@ -1,0 +1,65 @@
+import { describe, it, expect } from 'vitest'
+import { assertConstraintsNotRelaxed } from './validate-constraints.js'
+import { AmapErrorCode } from '../errors/codes.js'
+
+describe('assertConstraintsNotRelaxed', () => {
+  it('passes when candidate is more restrictive', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { maxSpend: 500, maxCalls: 100 },
+        { maxSpend: 200, maxCalls: 10 },
+      ),
+    ).not.toThrow()
+  })
+
+  it('passes when candidate adds no constraints', () => {
+    expect(() => assertConstraintsNotRelaxed({ maxSpend: 500 }, {})).not.toThrow()
+  })
+
+  it('throws CONSTRAINT_RELAXATION for maxSpend increase', () => {
+    expect(() => assertConstraintsNotRelaxed({ maxSpend: 500 }, { maxSpend: 1000 })).toThrow(
+      expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }),
+    )
+  })
+
+  it('throws CONSTRAINT_RELAXATION for maxCalls increase', () => {
+    expect(() => assertConstraintsNotRelaxed({ maxCalls: 10 }, { maxCalls: 100 })).toThrow(
+      expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }),
+    )
+  })
+
+  it('throws CONSTRAINT_RELAXATION for unsetting readOnly', () => {
+    expect(() => assertConstraintsNotRelaxed({ readOnly: true }, { readOnly: false })).toThrow(
+      expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }),
+    )
+    // omitting readOnly is fine — merged result will still be true
+    expect(() => assertConstraintsNotRelaxed({ readOnly: true }, {})).not.toThrow()
+  })
+
+  it('throws CONSTRAINT_RELAXATION for domain not in parent allowedDomains', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { allowedDomains: ['a.com', 'b.com'] },
+        { allowedDomains: ['a.com', 'c.com'] },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('throws CONSTRAINT_RELAXATION for parameterLock override attempt', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { parameterLocks: { to: 'boss@company.com' } },
+        { parameterLocks: { to: 'hacker@evil.com' } },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('does NOT throw when candidate adds a new parameterLock key', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { parameterLocks: { to: 'boss@company.com' } },
+        { parameterLocks: { to: 'boss@company.com', subject: 'Approved' } },
+      ),
+    ).not.toThrow()
+  })
+})

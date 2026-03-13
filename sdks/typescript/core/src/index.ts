@@ -1,7 +1,8 @@
 import { keygen } from './crypto/keygen.js'
 import { computeDID } from './crypto/did.js'
 import { issue } from './api/issue.js'
-import { delegate, verify, signRequest, verifyRequest, revoke } from './api/stubs.js'
+import { delegate } from './api/delegate.js'
+import { verify, signRequest, verifyRequest, revoke } from './api/stubs.js'
 
 /**
  * The amap namespace — the primary public API surface.
