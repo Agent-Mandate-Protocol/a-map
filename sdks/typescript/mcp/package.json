@@ -1,7 +1,9 @@
 {
   "name": "@agentmandateprotocol/mcp",
   "version": "0.0.1",
-  "description": "A-MAP MCP integration",
+  "description": "A-MAP MCP integration — wrap any MCP tool with cryptographic agent authorization",
+  "license": "MIT",
+  "author": "Agent Mandate Protocol",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +20,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@agentmandateprotocol/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "*",
