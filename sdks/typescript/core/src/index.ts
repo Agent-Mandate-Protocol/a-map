@@ -1,5 +1,6 @@
 import { keygen } from './crypto/keygen.js'
 import { computeDID } from './crypto/did.js'
+import { register } from './api/register.js'
 import { issue } from './api/issue.js'
 import { delegate } from './api/delegate.js'
 import { verify } from './api/verify.js'
@@ -14,6 +15,7 @@ import { verifyRequest } from './api/verify-request.js'
 export const amap = {
   keygen,
   computeDID,
+  register,
   issue,
   delegate,
   verify,
@@ -23,7 +25,7 @@ export const amap = {
 }
 
 // Named exports for consumers who prefer them
-export { keygen, computeDID, issue, delegate, verify, signRequest, verifyRequest, revoke }
+export { keygen, computeDID, register, issue, delegate, verify, signRequest, verifyRequest, revoke }
 
 // Crypto primitives (T2)
 export { canonicalize } from './crypto/canonicalize.js'
@@ -57,3 +59,6 @@ export type {
 
 // Revocation (T7)
 export type { RevocationNotice } from './api/revoke.js'
+
+// Registry (T15)
+export type { RegisterOptions } from './api/register.js'

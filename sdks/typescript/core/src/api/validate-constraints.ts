@@ -39,13 +39,15 @@ export function assertConstraintsNotRelaxed(
     if (candidate.rateLimit.count > mergedParent.rateLimit.count) {
       throw new AmapError(
         AmapErrorCode.CONSTRAINT_RELAXATION,
-        'rateLimit.count is less restrictive than parent',
+        `rateLimit.count ${candidate.rateLimit.count} exceeds parent limit of ${mergedParent.rateLimit.count}`,
       )
     }
-    if (candidate.rateLimit.windowSeconds > mergedParent.rateLimit.windowSeconds) {
+    // Shorter windowSeconds = more calls per unit time = less restrictive.
+    // e.g. { count: 5, windowSeconds: 60 } = 5/min is less restrictive than 5/hour.
+    if (candidate.rateLimit.windowSeconds < mergedParent.rateLimit.windowSeconds) {
       throw new AmapError(
         AmapErrorCode.CONSTRAINT_RELAXATION,
-        'rateLimit.windowSeconds is less restrictive than parent',
+        `rateLimit.windowSeconds ${candidate.rateLimit.windowSeconds}s is shorter than parent ${mergedParent.rateLimit.windowSeconds}s (same count in a shorter window = higher rate)`,
       )
     }
   }

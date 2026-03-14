@@ -17,13 +17,13 @@ describe('mergeConstraints', () => {
     expect(mergeConstraints({ maxCalls: 3 }, { maxCalls: 100 }).maxCalls).toBe(3)
   })
 
-  it('rateLimit: most restrictive per field wins', () => {
+  it('rateLimit: min(count), max(windowSeconds) — most restrictive rate wins', () => {
     const result = mergeConstraints(
       { rateLimit: { count: 10, windowSeconds: 60 } },
       { rateLimit: { count: 5, windowSeconds: 120 } }
     )
-    expect(result.rateLimit?.count).toBe(5)
-    expect(result.rateLimit?.windowSeconds).toBe(60)
+    expect(result.rateLimit?.count).toBe(5)           // min: fewer calls
+    expect(result.rateLimit?.windowSeconds).toBe(120) // max: longer window = lower rate
   })
 
   it('readOnly: once true, always true', () => {

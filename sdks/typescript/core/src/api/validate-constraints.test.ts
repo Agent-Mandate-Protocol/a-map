@@ -74,11 +74,31 @@ describe('assertConstraintsNotRelaxed — rateLimit', () => {
     ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
   })
 
-  it('throws CONSTRAINT_RELAXATION when candidate rateLimit.windowSeconds exceeds parent', () => {
+  it('throws CONSTRAINT_RELAXATION when candidate rateLimit.windowSeconds is shorter than parent (higher rate)', () => {
+    // { count: 5, windowSeconds: 60 } = 5/min is LESS restrictive than 5/hour
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { rateLimit: { count: 5, windowSeconds: 3600 } },
+        { rateLimit: { count: 5, windowSeconds: 60 } },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('does NOT throw when candidate rateLimit.windowSeconds is longer than parent (lower rate)', () => {
+    // { count: 5, windowSeconds: 120 } = 5/2min is MORE restrictive than 5/min
     expect(() =>
       assertConstraintsNotRelaxed(
         { rateLimit: { count: 5, windowSeconds: 60 } },
         { rateLimit: { count: 5, windowSeconds: 120 } },
+      ),
+    ).not.toThrow()
+  })
+
+  it('security: cannot bypass hourly limit with a 1-second window', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { rateLimit: { count: 5, windowSeconds: 3600 } },
+        { rateLimit: { count: 5, windowSeconds: 1 } },
       ),
     ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
   })
@@ -101,11 +121,12 @@ describe('assertConstraintsNotRelaxed — rateLimit', () => {
     ).not.toThrow()
   })
 
-  it('does NOT throw when candidate rateLimit is more restrictive', () => {
+  it('does NOT throw when candidate rateLimit is more restrictive on both dimensions', () => {
+    // count: 5 < 10 (fewer calls) AND windowSeconds: 240 > 120 (longer window = lower rate)
     expect(() =>
       assertConstraintsNotRelaxed(
         { rateLimit: { count: 10, windowSeconds: 120 } },
-        { rateLimit: { count: 5, windowSeconds: 60 } },
+        { rateLimit: { count: 5, windowSeconds: 240 } },
       ),
     ).not.toThrow()
   })

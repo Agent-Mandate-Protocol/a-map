@@ -14,7 +14,14 @@ export interface Constraints {
   maxCalls?: number
 
   /**
-   * Rate limit for calls within a time window. Merge: most restrictive per field wins.
+   * Rate limit for calls within a time window.
+   *
+   * Merge semantics:
+   * - `count`: min wins (fewer allowed calls is more restrictive)
+   * - `windowSeconds`: max wins (longer window at same count = lower rate = more restrictive)
+   *
+   * Example: parent { count: 5, windowSeconds: 3600 } = 5/hour.
+   * Child cannot use { count: 5, windowSeconds: 60 } = 5/minute — that is less restrictive.
    */
   rateLimit?: {
     count: number
@@ -72,11 +79,12 @@ export function mergeConstraints(parent: Constraints, child: Constraints): Const
     merged.maxCalls = Math.min(parent.maxCalls ?? Infinity, child.maxCalls ?? Infinity)
   }
 
-  // rateLimit: most restrictive per field
+  // rateLimit: min(count) — fewer calls is more restrictive
+  //            max(windowSeconds) — longer window at same count = lower rate = more restrictive
   if (parent.rateLimit !== undefined || child.rateLimit !== undefined) {
     merged.rateLimit = {
       count: Math.min(parent.rateLimit?.count ?? Infinity, child.rateLimit?.count ?? Infinity),
-      windowSeconds: Math.min(parent.rateLimit?.windowSeconds ?? Infinity, child.rateLimit?.windowSeconds ?? Infinity),
+      windowSeconds: Math.max(parent.rateLimit?.windowSeconds ?? 0, child.rateLimit?.windowSeconds ?? 0),
     }
   }
 
