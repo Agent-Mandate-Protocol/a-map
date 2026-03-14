@@ -22,16 +22,19 @@ export interface AgentRegistry {
  * Use for tests, CLI tools, and airgapped deployments where public keys
  * are distributed out-of-band.
  *
- * Has no revocation list — all agents are considered active.
+ * Optionally accepts a revocation set — DIDs in the set are considered revoked.
  */
 export class LocalRegistryClient implements AgentRegistry {
-  constructor(private readonly keys: Map<string, string>) {}
+  constructor(
+    private readonly keys: Map<string, string>,
+    private readonly revoked: Set<string> = new Set(),
+  ) {}
 
   async resolve(did: string): Promise<string | null> {
     return this.keys.get(did) ?? null
   }
 
-  async isRevoked(_did: string): Promise<boolean> {
-    return false
+  async isRevoked(did: string): Promise<boolean> {
+    return this.revoked.has(did)
   }
 }

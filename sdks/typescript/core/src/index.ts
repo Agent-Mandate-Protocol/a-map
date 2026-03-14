@@ -3,7 +3,8 @@ import { computeDID } from './crypto/did.js'
 import { issue } from './api/issue.js'
 import { delegate } from './api/delegate.js'
 import { verify } from './api/verify.js'
-import { signRequest, verifyRequest, revoke } from './api/stubs.js'
+import { revoke } from './api/revoke.js'
+import { signRequest, verifyRequest } from './api/stubs.js'
 
 /**
  * The amap namespace — the primary public API surface.
@@ -52,3 +53,6 @@ export type {
   SignedRequestHeaders,
   VerifyRequestOptions,
 } from './api/types.js'
+
+// Revocation (T7)
+export type { RevocationNotice } from './api/revoke.js'
