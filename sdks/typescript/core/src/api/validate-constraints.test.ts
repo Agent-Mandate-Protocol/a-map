@@ -63,3 +63,79 @@ describe('assertConstraintsNotRelaxed', () => {
     ).not.toThrow()
   })
 })
+
+describe('assertConstraintsNotRelaxed — rateLimit', () => {
+  it('throws CONSTRAINT_RELAXATION when candidate rateLimit.count exceeds parent', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { rateLimit: { count: 5, windowSeconds: 60 } },
+        { rateLimit: { count: 10, windowSeconds: 60 } },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('throws CONSTRAINT_RELAXATION when candidate rateLimit.windowSeconds exceeds parent', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { rateLimit: { count: 5, windowSeconds: 60 } },
+        { rateLimit: { count: 5, windowSeconds: 120 } },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('does NOT throw when candidate rateLimit is absent', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { rateLimit: { count: 5, windowSeconds: 60 } },
+        {},
+      ),
+    ).not.toThrow()
+  })
+
+  it('does NOT throw when candidate rateLimit is equally restrictive', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { rateLimit: { count: 5, windowSeconds: 60 } },
+        { rateLimit: { count: 5, windowSeconds: 60 } },
+      ),
+    ).not.toThrow()
+  })
+
+  it('does NOT throw when candidate rateLimit is more restrictive', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { rateLimit: { count: 10, windowSeconds: 120 } },
+        { rateLimit: { count: 5, windowSeconds: 60 } },
+      ),
+    ).not.toThrow()
+  })
+})
+
+describe('assertConstraintsNotRelaxed — allowedActions', () => {
+  it('throws CONSTRAINT_RELAXATION when candidate adds an action not in parent', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { allowedActions: ['GET', 'POST'] },
+        { allowedActions: ['GET', 'DELETE'] },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('does NOT throw when candidate is a strict subset of parent', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { allowedActions: ['GET', 'POST', 'PUT'] },
+        { allowedActions: ['GET'] },
+      ),
+    ).not.toThrow()
+  })
+
+  it('does NOT throw when candidate allowedActions is absent', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { allowedActions: ['GET'] },
+        {},
+      ),
+    ).not.toThrow()
+  })
+})
