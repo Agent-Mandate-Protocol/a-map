@@ -1,25 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { LocalRegistryClient } from './registry.js'
+import { LocalKeyResolver } from './registry.js'
 
-describe('LocalRegistryClient', () => {
+describe('LocalKeyResolver', () => {
   it('resolves known DIDs', async () => {
-    const registry = new LocalRegistryClient(new Map([['did:amap:a:1:xyz', 'pubkey']]))
-    expect(await registry.resolve('did:amap:a:1:xyz')).toBe('pubkey')
+    const resolver = new LocalKeyResolver(new Map([['did:amap:agent:a:1.0:xyz12345', 'pubkey']]))
+    expect(await resolver.resolve('did:amap:agent:a:1.0:xyz12345')).toBe('pubkey')
   })
 
   it('returns null for unknown DIDs', async () => {
-    const registry = new LocalRegistryClient(new Map())
-    expect(await registry.resolve('did:amap:unknown:1:xyz')).toBeNull()
-  })
-
-  it('returns false for isRevoked when no revocation set', async () => {
-    const registry = new LocalRegistryClient(new Map([['did:amap:a:1:xyz', 'pubkey']]))
-    expect(await registry.isRevoked('did:amap:a:1:xyz')).toBe(false)
-  })
-
-  it('returns true for isRevoked when DID is in revocation set', async () => {
-    const revoked = new Set(['did:amap:a:1:xyz'])
-    const registry = new LocalRegistryClient(new Map([['did:amap:a:1:xyz', 'pubkey']]), revoked)
-    expect(await registry.isRevoked('did:amap:a:1:xyz')).toBe(true)
+    const resolver = new LocalKeyResolver(new Map())
+    expect(await resolver.resolve('did:amap:agent:unknown:1.0:xyz12345')).toBeNull()
   })
 })

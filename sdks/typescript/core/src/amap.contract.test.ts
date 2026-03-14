@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest'
 import {
   amap,
   InMemoryNonceStore,
-  LocalRegistryClient,
+  LocalKeyResolver,
   AmapError,
   AmapErrorCode,
 } from './index.js'
@@ -23,7 +23,7 @@ import {
 
 function makeParty(name: string) {
   const keys = amap.keygen()
-  const did = amap.computeDID(name, '1.0', keys.publicKey)
+  const did = amap.computeDID({ type: 'agent', name, version: '1.0', publicKey: keys.publicKey })
   return { keys, did }
 }
 
@@ -35,17 +35,16 @@ describe('amap.issue()', () => {
     const agent = makeParty('agent')
 
     const token = await amap.issue({
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agent.did,
       permissions: ['read_email'],
       expiresIn: '15m',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     })
 
     expect(token.version).toBe('1')
     expect(token.parentTokenHash).toBeNull()
-    expect(token.principal).toBe('alice@example.com')
+    expect(token.principal).toBe(principal.did)
     expect(token.issuer).toBe(principal.did)
     expect(token.delegate).toBe(agent.did)
     expect(token.permissions).toEqual(['read_email'])
@@ -60,13 +59,12 @@ describe('amap.issue()', () => {
     const agent = makeParty('agent')
 
     const token = await amap.issue({
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agent.did,
       permissions: ['read_email'],
       intentHash: 'abc123deadbeef',
       expiresIn: '15m',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     })
 
     expect(token.intentHash).toBe('abc123deadbeef')
@@ -77,12 +75,11 @@ describe('amap.issue()', () => {
     const agent = makeParty('agent')
 
     const token = await amap.issue({
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agent.did,
       permissions: ['read_email'],
       expiresIn: '15m',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     })
 
     expect(token.intentHash).toBeUndefined()
@@ -92,12 +89,11 @@ describe('amap.issue()', () => {
     const principal = makeParty('principal')
     const agent = makeParty('agent')
     const opts = {
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agent.did,
       permissions: ['read_email'],
       expiresIn: '15m',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     }
 
     const a = await amap.issue(opts)
@@ -111,13 +107,12 @@ describe('amap.issue()', () => {
     const agent = makeParty('agent')
 
     const token = await amap.issue({
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agent.did,
       permissions: ['send_email'],
       constraints: { maxCalls: 10, parameterLocks: { to: 'boss@company.com' } },
       expiresIn: '15m',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     })
 
     expect(token.constraints.maxCalls).toBe(10)
@@ -132,13 +127,12 @@ describe('amap.delegate()', () => {
     const principal = makeParty('principal')
     const agentA = makeParty('agent-a')
     const root = await amap.issue({
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agentA.did,
       permissions: overrides?.permissions ?? ['read_email', 'send_email'],
       constraints: { maxSpend: 500, maxCalls: 100, ...overrides?.constraints },
       expiresIn: '1h',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     })
     return { principal, agentA, root }
   }
@@ -155,7 +149,6 @@ describe('amap.delegate()', () => {
       constraints: { maxCalls: 10 },
       expiresIn: '15m',
       privateKey: agentA.keys.privateKey,
-      issuerDid: agentA.did,
     })
 
     expect(child.parentTokenHash).toBeTruthy()
@@ -178,14 +171,13 @@ describe('amap.delegate()', () => {
       permissions: ['read_email'],
       expiresIn: '15m',
       privateKey: agentA.keys.privateKey,
-      issuerDid: agentA.did,
     })
 
     expect(child.parentTokenHash).toBe(sha256ofObject(root))
   })
 
   it('carries the root principal through to child tokens', async () => {
-    const { agentA, root } = await makeRoot()
+    const { principal, agentA, root } = await makeRoot()
     const agentB = makeParty('agent-b')
 
     const child = await amap.delegate({
@@ -195,10 +187,9 @@ describe('amap.delegate()', () => {
       permissions: ['read_email'],
       expiresIn: '15m',
       privateKey: agentA.keys.privateKey,
-      issuerDid: agentA.did,
     })
 
-    expect(child.principal).toBe('alice@example.com')
+    expect(child.principal).toBe(principal.did)
   })
 
   // ── Invariant 1: PERMISSION_INFLATION ─────────────────────────────────
@@ -215,7 +206,6 @@ describe('amap.delegate()', () => {
         permissions: ['read_email', 'delete_email'],
         expiresIn: '15m',
         privateKey: agentA.keys.privateKey,
-        issuerDid: agentA.did,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PERMISSION_INFLATION })
   })
@@ -232,7 +222,6 @@ describe('amap.delegate()', () => {
         permissions: ['read_email', 'book_flight'],
         expiresIn: '15m',
         privateKey: agentA.keys.privateKey,
-        issuerDid: agentA.did,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PERMISSION_INFLATION })
   })
@@ -251,7 +240,6 @@ describe('amap.delegate()', () => {
         permissions: ['read_email'],
         expiresIn: '25h',
         privateKey: agentA.keys.privateKey,
-        issuerDid: agentA.did,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.EXPIRY_VIOLATION })
   })
@@ -271,7 +259,6 @@ describe('amap.delegate()', () => {
         constraints: { maxSpend: 1000 },
         expiresIn: '15m',
         privateKey: agentA.keys.privateKey,
-        issuerDid: agentA.did,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.CONSTRAINT_RELAXATION })
   })
@@ -280,13 +267,12 @@ describe('amap.delegate()', () => {
     const principal = makeParty('principal')
     const agentA = makeParty('agent-a')
     const root = await amap.issue({
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agentA.did,
       permissions: ['read_email'],
       constraints: { readOnly: true },
       expiresIn: '1h',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     })
     const agentB = makeParty('agent-b')
 
@@ -299,7 +285,6 @@ describe('amap.delegate()', () => {
         constraints: { readOnly: false },
         expiresIn: '15m',
         privateKey: agentA.keys.privateKey,
-        issuerDid: agentA.did,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.CONSTRAINT_RELAXATION })
   })
@@ -308,13 +293,12 @@ describe('amap.delegate()', () => {
     const principal = makeParty('principal')
     const agentA = makeParty('agent-a')
     const root = await amap.issue({
-      principal: 'alice@example.com',
+      principal: principal.did,
       delegate: agentA.did,
       permissions: ['send_email'],
       constraints: { parameterLocks: { to: 'boss@company.com' } },
       expiresIn: '1h',
       privateKey: principal.keys.privateKey,
-      issuerDid: principal.did,
     })
     const agentB = makeParty('agent-b')
 
@@ -327,7 +311,6 @@ describe('amap.delegate()', () => {
         constraints: { parameterLocks: { to: 'hacker@evil.com' } },
         expiresIn: '15m',
         privateKey: agentA.keys.privateKey,
-        issuerDid: agentA.did,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.CONSTRAINT_RELAXATION })
   })
@@ -339,27 +322,26 @@ describe('amap.delegate()', () => {
     const c = makeParty('c')
 
     const root = await amap.issue({
-      principal: 'alice@example.com',
+      principal: pk.did,
       delegate: a.did,
       permissions: ['read_email'],
       constraints: { maxSpend: 500, maxCalls: 100 },
       expiresIn: '1h',
       privateKey: pk.keys.privateKey,
-      issuerDid: pk.did,
     })
     const hop2 = await amap.delegate({
       parentToken: root, parentChain: [root],
       delegate: b.did, permissions: ['read_email'],
       constraints: { maxSpend: 200, maxCalls: 50 },
       expiresIn: '30m',
-      privateKey: a.keys.privateKey, issuerDid: a.did,
+      privateKey: a.keys.privateKey,
     })
     const hop3 = await amap.delegate({
       parentToken: hop2, parentChain: [root, hop2],
       delegate: c.did, permissions: ['read_email'],
       constraints: { maxCalls: 5 },
       expiresIn: '15m',
-      privateKey: b.keys.privateKey, issuerDid: b.did,
+      privateKey: b.keys.privateKey,
     })
 
     expect(hop3.delegate).toBe(c.did)
@@ -373,34 +355,34 @@ describe('amap.verify()', () => {
   async function make1Hop() {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
     const token = await amap.issue({
-      principal: 'alice@example.com',
+      principal: pk.did,
       delegate: agent.did,
       permissions: ['read_email'],
       constraints: { maxSpend: 500 },
       expiresIn: '15m',
       privateKey: pk.keys.privateKey,
-      issuerDid: pk.did,
     })
-    return { chain: [token], agent, registry }
+    return { chain: [token], agent, keyResolver }
   }
 
   it('returns valid: true for a correct 1-hop chain', async () => {
-    const { chain, agent, registry } = await make1Hop()
+    const { chain, agent, keyResolver } = await make1Hop()
 
-    const result = await amap.verify(chain, {
+    const result = await amap.verify({
+      chain,
       expectedPermission: 'read_email',
       expectedDelegate: agent.did,
       nonceStore: new InMemoryNonceStore(),
-      registry,
+      keyResolver,
     })
 
     expect(result.valid).toBe(true)
-    expect(result.principal).toBe('alice@example.com')
+    expect(result.principal).toBe(chain[0]!.principal)
     expect(result.effectiveConstraints.maxSpend).toBe(500)
     expect(result.auditId).toBeTruthy()
     expect(result.chain).toHaveLength(1)
@@ -411,7 +393,7 @@ describe('amap.verify()', () => {
     const a = makeParty('a')
     const b = makeParty('b')
     const c = makeParty('c')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [a.did, a.keys.publicKey],
       [b.did, b.keys.publicKey],
@@ -419,26 +401,27 @@ describe('amap.verify()', () => {
     ]))
 
     const root = await amap.issue({
-      principal: 'alice@example.com', delegate: a.did,
+      principal: pk.did, delegate: a.did,
       permissions: ['read_email'], constraints: { maxSpend: 500 },
-      expiresIn: '1h', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '1h', privateKey: pk.keys.privateKey,
     })
     const hop2 = await amap.delegate({
       parentToken: root, parentChain: [root], delegate: b.did,
       permissions: ['read_email'], expiresIn: '30m',
-      privateKey: a.keys.privateKey, issuerDid: a.did,
+      privateKey: a.keys.privateKey,
     })
     const hop3 = await amap.delegate({
       parentToken: hop2, parentChain: [root, hop2], delegate: c.did,
       permissions: ['read_email'], expiresIn: '15m',
-      privateKey: b.keys.privateKey, issuerDid: b.did,
+      privateKey: b.keys.privateKey,
     })
 
-    const result = await amap.verify([root, hop2, hop3], {
+    const result = await amap.verify({
+      chain: [root, hop2, hop3],
       expectedPermission: 'read_email',
       expectedDelegate: c.did,
       nonceStore: new InMemoryNonceStore(),
-      registry,
+      keyResolver,
     })
 
     expect(result.valid).toBe(true)
@@ -450,28 +433,29 @@ describe('amap.verify()', () => {
     const pk = makeParty('pk')
     const a = makeParty('a')
     const b = makeParty('b')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [a.did, a.keys.publicKey],
       [b.did, b.keys.publicKey],
     ]))
 
     const root = await amap.issue({
-      principal: 'alice@example.com', delegate: a.did,
+      principal: pk.did, delegate: a.did,
       permissions: ['read_email'], constraints: { maxSpend: 500, maxCalls: 100 },
-      expiresIn: '1h', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '1h', privateKey: pk.keys.privateKey,
     })
     const child = await amap.delegate({
       parentToken: root, parentChain: [root], delegate: b.did,
       permissions: ['read_email'], constraints: { maxSpend: 200, maxCalls: 10 },
-      expiresIn: '15m', privateKey: a.keys.privateKey, issuerDid: a.did,
+      expiresIn: '15m', privateKey: a.keys.privateKey,
     })
 
-    const result = await amap.verify([root, child], {
+    const result = await amap.verify({
+      chain: [root, child],
       expectedPermission: 'read_email',
       expectedDelegate: b.did,
       nonceStore: new InMemoryNonceStore(),
-      registry,
+      keyResolver,
     })
 
     expect(result.effectiveConstraints.maxSpend).toBe(200)
@@ -479,15 +463,16 @@ describe('amap.verify()', () => {
   })
 
   it('throws INVALID_SIGNATURE when a token is tampered', async () => {
-    const { chain, agent, registry } = await make1Hop()
+    const { chain, agent, keyResolver } = await make1Hop()
     const tampered = { ...chain[0]!, permissions: ['send_email', 'delete_everything'] }
 
     await expect(
-      amap.verify([tampered], {
+      amap.verify({
+        chain: [tampered],
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
         nonceStore: new InMemoryNonceStore(),
-        registry,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.INVALID_SIGNATURE })
   })
@@ -496,31 +481,32 @@ describe('amap.verify()', () => {
     const pk = makeParty('pk')
     const a = makeParty('a')
     const b = makeParty('b')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [a.did, a.keys.publicKey],
       [b.did, b.keys.publicKey],
     ]))
 
     const root = await amap.issue({
-      principal: 'alice@example.com', delegate: a.did,
+      principal: pk.did, delegate: a.did,
       permissions: ['read_email'], expiresIn: '1h',
-      privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      privateKey: pk.keys.privateKey,
     })
     const child = await amap.delegate({
       parentToken: root, parentChain: [root], delegate: b.did,
       permissions: ['read_email'], expiresIn: '15m',
-      privateKey: a.keys.privateKey, issuerDid: a.did,
+      privateKey: a.keys.privateKey,
     })
 
     const tamperedChild = { ...child, parentTokenHash: 'deadbeef'.repeat(8) }
 
     await expect(
-      amap.verify([root, tamperedChild], {
+      amap.verify({
+        chain: [root, tamperedChild],
         expectedPermission: 'read_email',
         expectedDelegate: b.did,
         nonceStore: new InMemoryNonceStore(),
-        registry,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.BROKEN_CHAIN })
   })
@@ -528,42 +514,44 @@ describe('amap.verify()', () => {
   it('throws TOKEN_EXPIRED when a token is past its expiresAt', async () => {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
 
     const token = await amap.issue({
-      principal: 'alice@example.com', delegate: agent.did,
+      principal: pk.did, delegate: agent.did,
       permissions: ['read_email'], expiresIn: '1ms',
-      privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      privateKey: pk.keys.privateKey,
     })
 
     await new Promise(r => setTimeout(r, 10))
 
     await expect(
-      amap.verify([token], {
+      amap.verify({
+        chain: [token],
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
         nonceStore: new InMemoryNonceStore(),
-        registry,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.TOKEN_EXPIRED })
   })
 
   it('throws NONCE_REPLAYED when the same chain is verified twice', async () => {
-    const { chain, agent, registry } = await make1Hop()
+    const { chain, agent, keyResolver } = await make1Hop()
     const nonceStore = new InMemoryNonceStore()
     const opts = {
+      chain,
       expectedPermission: 'read_email',
       expectedDelegate: agent.did,
       nonceStore,
-      registry,
+      keyResolver,
     }
 
-    await amap.verify(chain, opts)
+    await amap.verify(opts)
 
-    await expect(amap.verify(chain, opts)).rejects.toMatchObject({
+    await expect(amap.verify(opts)).rejects.toMatchObject({
       code: AmapErrorCode.NONCE_REPLAYED,
     })
   })
@@ -571,24 +559,25 @@ describe('amap.verify()', () => {
   it('throws PARAMETER_LOCK_VIOLATION when requestParams violate a lock', async () => {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
 
     const token = await amap.issue({
-      principal: 'alice@example.com', delegate: agent.did,
+      principal: pk.did, delegate: agent.did,
       permissions: ['send_email'],
       constraints: { parameterLocks: { to: 'boss@company.com' } },
-      expiresIn: '15m', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '15m', privateKey: pk.keys.privateKey,
     })
 
     await expect(
-      amap.verify([token], {
+      amap.verify({
+        chain: [token],
         expectedPermission: 'send_email',
         expectedDelegate: agent.did,
         nonceStore: new InMemoryNonceStore(),
-        registry,
+        keyResolver,
         requestParams: { to: 'hacker@evil.com' },
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PARAMETER_LOCK_VIOLATION })
@@ -597,23 +586,24 @@ describe('amap.verify()', () => {
   it('passes when requestParams match parameterLocks exactly', async () => {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
 
     const token = await amap.issue({
-      principal: 'alice@example.com', delegate: agent.did,
+      principal: pk.did, delegate: agent.did,
       permissions: ['send_email'],
       constraints: { parameterLocks: { to: 'boss@company.com' } },
-      expiresIn: '15m', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '15m', privateKey: pk.keys.privateKey,
     })
 
-    const result = await amap.verify([token], {
+    const result = await amap.verify({
+      chain: [token],
       expectedPermission: 'send_email',
       expectedDelegate: agent.did,
       nonceStore: new InMemoryNonceStore(),
-      registry,
+      keyResolver,
       requestParams: { to: 'boss@company.com' },
     })
 
@@ -622,14 +612,15 @@ describe('amap.verify()', () => {
 
   it('throws AGENT_UNKNOWN when a DID cannot be resolved', async () => {
     const { chain, agent } = await make1Hop()
-    const emptyRegistry = new LocalRegistryClient(new Map()) // no keys
+    const emptyResolver = new LocalKeyResolver(new Map())
 
     await expect(
-      amap.verify(chain, {
+      amap.verify({
+        chain,
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
         nonceStore: new InMemoryNonceStore(),
-        registry: emptyRegistry,
+        keyResolver: emptyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.AGENT_UNKNOWN })
   })
@@ -641,24 +632,24 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
   async function makeSetup() {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
     const token = await amap.issue({
-      principal: 'alice@example.com', delegate: agent.did,
+      principal: pk.did, delegate: agent.did,
       permissions: ['read_email'], expiresIn: '15m',
-      privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      privateKey: pk.keys.privateKey,
     })
-    return { pk, agent, registry, token }
+    return { pk, agent, keyResolver, token }
   }
 
   it('produces all required X-AMAP-* headers', async () => {
     const { agent, token } = await makeSetup()
 
     const headers = amap.signRequest({
-      method: 'GET', path: '/email/inbox', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'GET', path: '/email/inbox',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
 
@@ -672,8 +663,8 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
   it('generates a unique nonce on each call', async () => {
     const { agent, token } = await makeSetup()
     const opts = {
-      method: 'GET', path: '/email/inbox', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'GET', path: '/email/inbox',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     }
 
@@ -683,30 +674,30 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
   })
 
   it('full round-trip: signRequest → verifyRequest succeeds', async () => {
-    const { agent, registry, token } = await makeSetup()
+    const { agent, keyResolver, token } = await makeSetup()
 
     const headers = amap.signRequest({
-      method: 'GET', path: '/email/inbox', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'GET', path: '/email/inbox',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
 
     const result = await amap.verifyRequest({
-      headers, method: 'GET', path: '/email/inbox', body: null,
+      headers, method: 'GET', path: '/email/inbox',
       nonceStore: new InMemoryNonceStore(),
-      registry,
+      keyResolver,
     })
 
     expect(result.valid).toBe(true)
-    expect(result.principal).toBe('alice@example.com')
+    expect(result.principal).toBe(token.principal)
   })
 
   it('throws STALE_REQUEST when timestamp is outside ±5 minutes', async () => {
-    const { agent, registry, token } = await makeSetup()
+    const { agent, keyResolver, token } = await makeSetup()
 
     const headers = amap.signRequest({
-      method: 'GET', path: '/email/inbox', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'GET', path: '/email/inbox',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
     const staleHeaders = {
@@ -716,22 +707,22 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
 
     await expect(
       amap.verifyRequest({
-        headers: staleHeaders, method: 'GET', path: '/email/inbox', body: null,
-        nonceStore: new InMemoryNonceStore(), registry,
+        headers: staleHeaders, method: 'GET', path: '/email/inbox',
+        nonceStore: new InMemoryNonceStore(), keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.STALE_REQUEST })
   })
 
   it('throws NONCE_REPLAYED when the same request is submitted twice', async () => {
-    const { agent, registry, token } = await makeSetup()
+    const { agent, keyResolver, token } = await makeSetup()
 
     const headers = amap.signRequest({
-      method: 'GET', path: '/email/inbox', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'GET', path: '/email/inbox',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
     const nonceStore = new InMemoryNonceStore()
-    const opts = { headers, method: 'GET', path: '/email/inbox', body: null, nonceStore, registry }
+    const opts = { headers, method: 'GET', path: '/email/inbox', nonceStore, keyResolver }
 
     await amap.verifyRequest(opts)
     await expect(amap.verifyRequest(opts)).rejects.toMatchObject({
@@ -740,37 +731,37 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
   })
 
   it('throws INVALID_REQUEST_SIGNATURE when body is tampered after signing', async () => {
-    const { agent, registry, token } = await makeSetup()
+    const { agent, keyResolver, token } = await makeSetup()
 
     const headers = amap.signRequest({
-      method: 'POST', path: '/email/send', body: { subject: 'hello' },
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'POST', path: '/email/send', body: '{"subject":"hello"}',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
 
     await expect(
       amap.verifyRequest({
         headers, method: 'POST', path: '/email/send',
-        body: { subject: 'TAMPERED' },
-        nonceStore: new InMemoryNonceStore(), registry,
+        body: '{"subject":"TAMPERED"}',
+        nonceStore: new InMemoryNonceStore(), keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.INVALID_REQUEST_SIGNATURE })
   })
 
   it('throws INVALID_REQUEST_SIGNATURE when X-AMAP-Signature is forged', async () => {
-    const { agent, registry, token } = await makeSetup()
+    const { agent, keyResolver, token } = await makeSetup()
 
     const headers = amap.signRequest({
-      method: 'GET', path: '/email/inbox', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'GET', path: '/email/inbox',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
     const badHeaders = { ...headers, 'X-AMAP-Signature': 'AAAAAAAAAAAAAAAA' }
 
     await expect(
       amap.verifyRequest({
-        headers: badHeaders, method: 'GET', path: '/email/inbox', body: null,
-        nonceStore: new InMemoryNonceStore(), registry,
+        headers: badHeaders, method: 'GET', path: '/email/inbox',
+        nonceStore: new InMemoryNonceStore(), keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.INVALID_REQUEST_SIGNATURE })
   })
@@ -778,28 +769,28 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
   it('enforces parameterLocks through the full verifyRequest path', async () => {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
     const token = await amap.issue({
-      principal: 'alice@example.com', delegate: agent.did,
+      principal: pk.did, delegate: agent.did,
       permissions: ['send_email'],
       constraints: { parameterLocks: { to: 'boss@company.com' } },
-      expiresIn: '15m', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '15m', privateKey: pk.keys.privateKey,
     })
 
     const headers = amap.signRequest({
-      method: 'POST', path: '/send', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'POST', path: '/send',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
 
     await expect(
       amap.verifyRequest({
-        headers, method: 'POST', path: '/send', body: null,
+        headers, method: 'POST', path: '/send',
         requestParams: { to: 'hacker@evil.com' },
-        nonceStore: new InMemoryNonceStore(), registry,
+        nonceStore: new InMemoryNonceStore(), keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PARAMETER_LOCK_VIOLATION })
   })
@@ -812,23 +803,24 @@ describe('core safety guarantees', () => {
   it('"cannot": agent with read_email mandate cannot pass a send_email permission check', async () => {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
 
     const token = await amap.issue({
-      principal: 'alice@example.com', delegate: agent.did,
+      principal: pk.did, delegate: agent.did,
       permissions: ['read_email'],
-      expiresIn: '15m', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '15m', privateKey: pk.keys.privateKey,
     })
 
     await expect(
-      amap.verify([token], {
+      amap.verify({
+        chain: [token],
         expectedPermission: 'send_email',
         expectedDelegate: agent.did,
         nonceStore: new InMemoryNonceStore(),
-        registry,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PERMISSION_INFLATION })
   })
@@ -836,29 +828,29 @@ describe('core safety guarantees', () => {
   it('"cannot": parameterLock means the agent literally cannot send to a different address', async () => {
     const pk = makeParty('pk')
     const agent = makeParty('agent')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [agent.did, agent.keys.publicKey],
     ]))
 
     const token = await amap.issue({
-      principal: 'alice@example.com', delegate: agent.did,
+      principal: pk.did, delegate: agent.did,
       permissions: ['send_email'],
       constraints: { parameterLocks: { to: 'boss@company.com' } },
-      expiresIn: '15m', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '15m', privateKey: pk.keys.privateKey,
     })
 
     const headers = amap.signRequest({
-      method: 'POST', path: '/send', body: null,
-      privateKey: agent.keys.privateKey, agentDid: agent.did,
+      method: 'POST', path: '/send',
+      privateKey: agent.keys.privateKey,
       mandateChain: [token],
     })
 
     await expect(
       amap.verifyRequest({
-        headers, method: 'POST', path: '/send', body: null,
+        headers, method: 'POST', path: '/send',
         requestParams: { to: 'hacker@evil.com' },
-        nonceStore: new InMemoryNonceStore(), registry,
+        nonceStore: new InMemoryNonceStore(), keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PARAMETER_LOCK_VIOLATION })
   })
@@ -868,7 +860,7 @@ describe('core safety guarantees', () => {
     const a = makeParty('a')
     const b = makeParty('b')
     const c = makeParty('c')
-    const registry = new LocalRegistryClient(new Map([
+    const keyResolver = new LocalKeyResolver(new Map([
       [pk.did, pk.keys.publicKey],
       [a.did, a.keys.publicKey],
       [b.did, b.keys.publicKey],
@@ -876,26 +868,27 @@ describe('core safety guarantees', () => {
     ]))
 
     const root = await amap.issue({
-      principal: 'alice@example.com', delegate: a.did,
+      principal: pk.did, delegate: a.did,
       permissions: ['book_flight'], constraints: { maxSpend: 500 },
-      expiresIn: '1h', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '1h', privateKey: pk.keys.privateKey,
     })
     const hop2 = await amap.delegate({
       parentToken: root, parentChain: [root],
       delegate: b.did, permissions: ['book_flight'],
-      expiresIn: '30m', privateKey: a.keys.privateKey, issuerDid: a.did,
+      expiresIn: '30m', privateKey: a.keys.privateKey,
     })
     const hop3 = await amap.delegate({
       parentToken: hop2, parentChain: [root, hop2],
       delegate: c.did, permissions: ['book_flight'],
-      expiresIn: '15m', privateKey: b.keys.privateKey, issuerDid: b.did,
+      expiresIn: '15m', privateKey: b.keys.privateKey,
     })
 
-    const result = await amap.verify([root, hop2, hop3], {
+    const result = await amap.verify({
+      chain: [root, hop2, hop3],
       expectedPermission: 'book_flight',
       expectedDelegate: c.did,
       nonceStore: new InMemoryNonceStore(),
-      registry,
+      keyResolver,
     })
 
     expect(result.valid).toBe(true)
@@ -908,9 +901,9 @@ describe('core safety guarantees', () => {
     const b = makeParty('b')
 
     const root = await amap.issue({
-      principal: 'alice@example.com', delegate: a.did,
+      principal: pk.did, delegate: a.did,
       permissions: ['read_email'],
-      expiresIn: '1h', privateKey: pk.keys.privateKey, issuerDid: pk.did,
+      expiresIn: '1h', privateKey: pk.keys.privateKey,
     })
 
     // Agent A tries to grant Agent B more than it has
@@ -919,7 +912,7 @@ describe('core safety guarantees', () => {
         parentToken: root, parentChain: [root],
         delegate: b.did,
         permissions: ['read_email', 'send_email', 'delete_email'],
-        expiresIn: '15m', privateKey: a.keys.privateKey, issuerDid: a.did,
+        expiresIn: '15m', privateKey: a.keys.privateKey,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PERMISSION_INFLATION })
   })

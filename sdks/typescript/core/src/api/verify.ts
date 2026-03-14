@@ -6,15 +6,12 @@ import { AmapError } from '../errors/amap-error.js'
 import { AmapErrorCode } from '../errors/codes.js'
 import { mergeConstraintChain } from '../types/constraints.js'
 import { InMemoryNonceStore } from '../types/nonce-store.js'
-import type { DelegationToken } from '../types/token.js'
 import type { VerificationResult, VerifiedLink } from '../types/result.js'
 import type { VerifyOptions } from './types.js'
 import { assertConstraintsNotRelaxed } from './validate-constraints.js'
 
-export async function verify(
-  chain: DelegationToken[],
-  opts: VerifyOptions,
-): Promise<VerificationResult> {
+export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
+  const { chain } = opts
   if (chain.length === 0) {
     throw new AmapError(AmapErrorCode.BROKEN_CHAIN, 'Chain must contain at least one token')
   }
@@ -56,13 +53,13 @@ export async function verify(
     }
 
     // Step 4: Resolve issuer public key
-    const publicKey = opts.registry ? await opts.registry.resolve(token.issuer) : null
+    const publicKey = opts.keyResolver ? await opts.keyResolver.resolve(token.issuer) : null
     if (publicKey === null) {
       throw new AmapError(AmapErrorCode.AGENT_UNKNOWN, `Cannot resolve DID: ${token.issuer}`, i)
     }
 
     // Step 5: Revocation check
-    if (opts.registry && (await opts.registry.isRevoked(token.issuer))) {
+    if (opts.revocationChecker && (await opts.revocationChecker.isRevoked(token.issuer))) {
       throw new AmapError(
         AmapErrorCode.AGENT_REVOKED,
         `Agent ${token.issuer} has been revoked`,
@@ -104,36 +101,34 @@ export async function verify(
       assertConstraintsNotRelaxed(mergedParent, token.constraints)
     }
 
-    // Step 8: Nonce replay check
-    if (!(await nonceStore.check(token.nonce))) {
+    // Step 8: Nonce replay check (atomic)
+    const tokenTtlMs = new Date(token.expiresAt).getTime() - Date.now()
+    if (!(await nonceStore.checkAndStore(token.nonce, Math.max(tokenTtlMs, 0)))) {
       throw new AmapError(AmapErrorCode.NONCE_REPLAYED, `Nonce already seen at hop ${i}`, i)
     }
-
-    // Step 9: Mark nonce as used
-    await nonceStore.mark(token.nonce, new Date(token.expiresAt))
 
     verifiedLinks.push({ hop: i, token, issuer: token.issuer, delegate: token.delegate })
   }
 
   const leafToken = chain[chain.length - 1]!
 
-  // Step 10: Delegate check — the leaf must delegate to the expected agent
-  if (leafToken.delegate !== opts.expectedDelegate) {
+  // Step 9: Delegate check — optional
+  if (opts.expectedDelegate !== undefined && leafToken.delegate !== opts.expectedDelegate) {
     throw new AmapError(
       AmapErrorCode.INVALID_SIGNATURE,
       `Chain is delegated to ${leafToken.delegate}, not ${opts.expectedDelegate}`,
     )
   }
 
-  // Step 11: Permission check
-  if (!leafToken.permissions.includes(opts.expectedPermission)) {
+  // Step 10: Permission check — optional
+  if (opts.expectedPermission !== undefined && !leafToken.permissions.includes(opts.expectedPermission)) {
     throw new AmapError(
       AmapErrorCode.PERMISSION_INFLATION,
       `Chain does not grant permission "${opts.expectedPermission}"`,
     )
   }
 
-  // Steps 12–13: parameterLocks check
+  // Steps 11–12: parameterLocks check
   if (opts.requestParams !== undefined) {
     const allLocks: Record<string, unknown> = {}
     for (const token of chain) {
@@ -151,10 +146,9 @@ export async function verify(
     }
   }
 
-  // Step 14: Compute effective constraints — most restrictive across all hops
+  // Step 13: Compute effective constraints — most restrictive across all hops
   const effectiveConstraints = mergeConstraintChain(chain.map(t => t.constraints))
 
-  // Step 15: Return result
   return {
     valid: true,
     principal: chain[0]!.principal,

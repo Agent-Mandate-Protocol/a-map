@@ -36,6 +36,16 @@ export interface VerificationResult {
    */
   auditId: string
 
+  /**
+   * IAM policy evaluation result. Populated by T17 (IAM Policy Engine).
+   * Absent when no policy was evaluated (e.g. no requestedAction provided).
+   */
+  appliedPolicy?: {
+    action: string
+    decision: 'ALLOW' | 'DENY'
+    matchedRule?: string
+  }
+
   /** Present when valid is false. */
   error?: {
     code: string

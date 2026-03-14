@@ -9,41 +9,35 @@
  */
 export interface NonceStore {
   /**
-   * Check if a nonce has been seen before.
-   * Returns true if the nonce is new (not yet seen).
-   * Returns false if the nonce has already been used.
+   * Atomically check and store a nonce.
+   * Returns true if the nonce was new (stored successfully).
+   * Returns false if the nonce was already seen (replay detected).
+   *
+   * @param nonce  - the nonce to check and store
+   * @param ttlMs  - time-to-live in milliseconds; implementations should evict after this window
    */
-  check(nonce: string): Promise<boolean>
-
-  /**
-   * Mark a nonce as used. Called after check() returns true.
-   * Implementations should set a TTL based on the token's expiresAt
-   * to prevent unbounded memory/storage growth.
-   */
-  mark(nonce: string, expiresAt: Date): Promise<void>
+  checkAndStore(nonce: string, ttlMs: number): Promise<boolean>
 }
 
 /**
  * In-memory NonceStore. Safe for single-process use (tests, CLI tools,
  * single-instance services). NOT suitable for production multi-instance deployments.
  *
- * Expired nonces are evicted lazily on each check() call.
+ * Expired nonces are evicted lazily on each checkAndStore() call.
  */
 export class InMemoryNonceStore implements NonceStore {
-  private readonly seen = new Map<string, Date>()
+  private readonly seen = new Map<string, number>() // nonce → expiry epoch ms
 
-  async check(nonce: string): Promise<boolean> {
+  async checkAndStore(nonce: string, ttlMs: number): Promise<boolean> {
     this.evict()
-    return !this.seen.has(nonce)
-  }
-
-  async mark(nonce: string, expiresAt: Date): Promise<void> {
-    this.seen.set(nonce, expiresAt)
+    if (this.seen.has(nonce)) return false
+    this.seen.set(nonce, Date.now() + ttlMs)
+    return true
   }
 
   /** Remove expired nonces to prevent unbounded memory growth. */
   private evict(): void {
-    const now = new Date()
+    const now = Date.now()
     for (const [nonce, expiry] of this.seen) {
       if (expiry < now) this.seen.delete(nonce)
     }

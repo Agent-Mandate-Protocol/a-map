@@ -53,7 +53,7 @@ export async function delegate(opts: DelegateOptions): Promise<DelegationToken> 
     tokenId: randomUUID(),
     parentTokenHash: sha256ofObject(parentToken),
     principal: parentToken.principal,
-    issuer: opts.issuerDid,
+    issuer: opts.parentToken.delegate,
     delegate: opts.delegate,
     permissions: opts.permissions,
     constraints: opts.constraints ?? {},

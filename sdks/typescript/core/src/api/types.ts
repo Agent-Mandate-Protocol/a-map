@@ -1,7 +1,7 @@
-import type { DelegationToken, Constraints, NonceStore, AgentRegistry } from '../types/index.js'
+import type { DelegationToken, Constraints, NonceStore, KeyResolver, RevocationChecker } from '../types/index.js'
 
 export interface IssueOptions {
-  /** Human or org identifier — carried through every child token. */
+  /** Human or org DID at the root of the chain. Becomes the token issuer for root tokens. */
   principal: string
   /** DID of the agent receiving this root delegation. */
   delegate: string
@@ -19,8 +19,6 @@ export interface IssueOptions {
   expiresIn: string
   /** base64url-encoded Ed25519 private key of the issuer. */
   privateKey: string
-  /** DID of the issuer. */
-  issuerDid: string
 }
 
 export interface DelegateOptions {
@@ -38,35 +36,46 @@ export interface DelegateOptions {
   expiresIn: string
   /** base64url-encoded Ed25519 private key of the delegating agent. */
   privateKey: string
-  /** DID of the delegating agent. */
-  issuerDid: string
 }
 
 export interface VerifyOptions {
-  /** The permission the tool requires for this action. */
-  expectedPermission: string
-  /** DID of the agent presenting the chain. */
-  expectedDelegate: string
+  /** The mandate chain to verify (index 0 = root). */
+  chain: DelegationToken[]
+  /**
+   * The permission the tool requires. If omitted, no permission check is performed —
+   * the caller reads result.chain[last].token.permissions and checks itself.
+   */
+  expectedPermission?: string
+  /**
+   * DID of the agent presenting the chain. If omitted, no delegate check is performed.
+   */
+  expectedDelegate?: string
   /** Nonce store for replay prevention. Defaults to a new InMemoryNonceStore if omitted. */
   nonceStore?: NonceStore
-  /** Registry for DID → public key resolution. */
-  registry?: AgentRegistry
+  /** Key resolver for DID → public key resolution. */
+  keyResolver?: KeyResolver
+  /** Revocation checker. Optional — omit to skip revocation checks. */
+  revocationChecker?: RevocationChecker
   /**
    * Request parameters to check against any parameterLocks in the chain.
    * If any token has parameterLocks, each locked key is compared against these.
    */
   requestParams?: Record<string, unknown>
+  /**
+   * Action string for IAM policy evaluation (T17).
+   * If provided, the IAM policy engine evaluates the action against the chain.
+   */
+  requestedAction?: string
 }
 
 export interface SignRequestOptions {
   method: string
   path: string
-  body: unknown
+  /** Request body as string or Buffer. Omit for requests with no body. */
+  body?: string | Buffer
   /** base64url-encoded Ed25519 private key of the agent making the request. */
   privateKey: string
-  /** DID of the agent making the request. */
-  agentDid: string
-  /** The full mandate chain the agent carries. */
+  /** The full mandate chain the agent carries. Agent DID is derived from the leaf delegate. */
   mandateChain: DelegationToken[]
 }
 
@@ -83,15 +92,22 @@ export interface VerifyRequestOptions {
   headers: Record<string, string>
   method: string
   path: string
-  body: unknown
+  /** Request body as string or Buffer. Omit for requests with no body. */
+  body?: string | Buffer
   /** Request parameters to check against parameterLocks. */
   requestParams?: Record<string, unknown>
   nonceStore?: NonceStore
-  registry?: AgentRegistry
+  /** Key resolver for DID → public key resolution. */
+  keyResolver?: KeyResolver
+  /** Revocation checker. Optional — omit to skip revocation checks. */
+  revocationChecker?: RevocationChecker
   /**
    * If provided, verify() will check this permission is in the chain's leaf permissions.
-   * If absent, no permission check is performed — the tool provider reads
-   * result.chain[last].token.permissions and checks itself.
+   * If absent, no permission check is performed.
    */
   expectedPermission?: string
+  /**
+   * Action string for IAM policy evaluation (T17).
+   */
+  requestedAction?: string
 }

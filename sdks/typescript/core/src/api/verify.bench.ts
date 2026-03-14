@@ -1,21 +1,22 @@
 import { bench, describe } from 'vitest'
-import { amap, LocalRegistryClient, InMemoryNonceStore } from '../index.js'
+import { amap, LocalKeyResolver, InMemoryNonceStore } from '../index.js'
 
 describe('verify() performance', () => {
   bench('<50ms for 10-hop chain', async () => {
     const keys = Array.from({ length: 11 }, () => amap.keygen())
-    const dids = keys.map((k, i) => amap.computeDID(`agent-${i}`, '1.0', k.publicKey))
-    const registry = new LocalRegistryClient(
+    const dids = keys.map((k, i) =>
+      amap.computeDID({ type: 'agent', name: `agent-${i}`, version: '1.0', publicKey: k.publicKey }),
+    )
+    const keyResolver = new LocalKeyResolver(
       new Map(dids.map((d, i) => [d, keys[i]!.publicKey])),
     )
 
     const root = await amap.issue({
-      principal: 'bench@example.com',
+      principal: dids[0]!,
       delegate: dids[1]!,
       permissions: ['read'],
       expiresIn: '1h',
       privateKey: keys[0]!.privateKey,
-      issuerDid: dids[0]!,
     })
 
     const chain = [root]
@@ -28,16 +29,16 @@ describe('verify() performance', () => {
           permissions: ['read'],
           expiresIn: '30m',
           privateKey: keys[i]!.privateKey,
-          issuerDid: dids[i]!,
         }),
       )
     }
 
-    await amap.verify(chain, {
+    await amap.verify({
+      chain,
       expectedPermission: 'read',
       expectedDelegate: dids[10]!,
       nonceStore: new InMemoryNonceStore(),
-      registry,
+      keyResolver,
     })
   }, { time: 500 })
 })

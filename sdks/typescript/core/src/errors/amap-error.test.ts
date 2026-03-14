@@ -26,21 +26,23 @@ describe('AmapError', () => {
     expect(err.hop).toBeUndefined()
   })
 
-  it('all 12 error codes are defined', () => {
+  it('all 14 error codes are defined', () => {
     const codes = Object.values(AmapErrorCode)
-    expect(codes).toHaveLength(12)
+    expect(codes).toHaveLength(14)
     expect(codes).toContain('PERMISSION_INFLATION')
     expect(codes).toContain('EXPIRY_VIOLATION')
     expect(codes).toContain('CONSTRAINT_RELAXATION')
     expect(codes).toContain('INVALID_SIGNATURE')
-    expect(codes).toContain('INVALID_REQUEST_SIGNATURE')
     expect(codes).toContain('BROKEN_CHAIN')
     expect(codes).toContain('TOKEN_EXPIRED')
-    expect(codes).toContain('NONCE_REPLAYED')
     expect(codes).toContain('AGENT_REVOKED')
     expect(codes).toContain('AGENT_UNKNOWN')
     expect(codes).toContain('PARAMETER_LOCK_VIOLATION')
+    expect(codes).toContain('EXPLICIT_DENY')
+    expect(codes).toContain('NONCE_REPLAYED')
     expect(codes).toContain('STALE_REQUEST')
+    expect(codes).toContain('INVALID_REQUEST_SIGNATURE')
+    expect(codes).toContain('MANDATE_HASH_MISMATCH')
   })
 
   it('can be caught and narrowed by code', () => {

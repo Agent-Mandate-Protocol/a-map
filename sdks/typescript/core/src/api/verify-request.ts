@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { AmapError } from '../errors/amap-error.js'
 import { AmapErrorCode } from '../errors/codes.js'
 import { canonicalize } from '../crypto/canonicalize.js'
@@ -14,12 +15,12 @@ const FIVE_MINUTES_MS = 5 * 60 * 1_000
  * Verify an incoming signed request (both layers: mandate chain + request signature).
  *
  * Checks in order:
- * 1. X-AMAP-Timestamp within ±5 minutes          → STALE_REQUEST
+ * 1. X-AMAP-Timestamp within ±5 minutes             → STALE_REQUEST
  * 2. Parse X-AMAP-Mandate chain
- * 3. X-AMAP-Nonce not replayed                   → NONCE_REPLAYED
- * 4. X-AMAP-Signature valid over request payload → INVALID_REQUEST_SIGNATURE
- * 5. Mark request nonce (only after valid sig — prevents nonce burning on forged requests)
- * 6. Mandate chain valid (via verify())           → any chain error
+ * 3. X-AMAP-Nonce not replayed (request-level)       → NONCE_REPLAYED
+ * 4. X-AMAP-Signature valid over { mandateHash, bodyHash, method, path, timestamp, nonce }
+ *                                                    → INVALID_REQUEST_SIGNATURE
+ * 5. Mandate chain valid (via verify())              → any chain error
  */
 export async function verifyRequest(opts: VerifyRequestOptions): Promise<VerificationResult> {
   const { headers, method, path, body, requestParams } = opts
@@ -61,12 +62,14 @@ export async function verifyRequest(opts: VerifyRequestOptions): Promise<Verific
     )
   }
 
-  // Step 3: Request nonce replay check
+  // Step 3: Request nonce replay check (atomic)
   const nonce = headers['X-AMAP-Nonce']
   if (!nonce) {
     throw new AmapError(AmapErrorCode.NONCE_REPLAYED, 'Missing X-AMAP-Nonce header')
   }
-  if (!(await nonceStore.check(nonce))) {
+  const leafToken = chain[chain.length - 1]!
+  const requestTtlMs = Math.max(new Date(leafToken.expiresAt).getTime() - Date.now(), 0)
+  if (!(await nonceStore.checkAndStore(nonce, requestTtlMs))) {
     throw new AmapError(
       AmapErrorCode.NONCE_REPLAYED,
       'X-AMAP-Nonce has already been used (replay detected)',
@@ -89,7 +92,7 @@ export async function verifyRequest(opts: VerifyRequestOptions): Promise<Verific
     )
   }
 
-  const agentPublicKey = opts.registry ? await opts.registry.resolve(agentDid) : null
+  const agentPublicKey = opts.keyResolver ? await opts.keyResolver.resolve(agentDid) : null
   if (agentPublicKey === null) {
     throw new AmapError(
       AmapErrorCode.AGENT_UNKNOWN,
@@ -97,21 +100,31 @@ export async function verifyRequest(opts: VerifyRequestOptions): Promise<Verific
     )
   }
 
-  const signedPayload = canonicalize({ method, path, body, timestamp: timestampStr, nonce })
+  // Compute mandateHash and bodyHash to match signRequest()
+  const mandateHash = createHash('sha256').update(mandateHeader).digest('hex')
+  const bHash = createHash('sha256').update(body ?? '').digest('hex')
+
+  const signedPayload = canonicalize({
+    mandateHash,
+    bodyHash: bHash,
+    method,
+    path,
+    timestamp: timestampStr,
+    nonce,
+  })
   if (!verifySignature(agentPublicKey, signedPayload, signatureHeader)) {
     throw new AmapError(AmapErrorCode.INVALID_REQUEST_SIGNATURE, 'X-AMAP-Signature is invalid')
   }
 
-  // Step 5: Mark request nonce — only after signature is verified
-  const leafToken = chain[chain.length - 1]!
-  await nonceStore.mark(nonce, new Date(leafToken.expiresAt))
-
-  // Step 6: Verify full mandate chain
-  return verify(chain, {
-    expectedPermission: opts.expectedPermission ?? leafToken.permissions[0] ?? '',
+  // Step 5: Verify full mandate chain
+  return verify({
+    chain,
+    ...(opts.expectedPermission !== undefined ? { expectedPermission: opts.expectedPermission } : {}),
     expectedDelegate: agentDid,
     nonceStore,
-    ...(opts.registry !== undefined ? { registry: opts.registry } : {}),
+    ...(opts.keyResolver !== undefined ? { keyResolver: opts.keyResolver } : {}),
+    ...(opts.revocationChecker !== undefined ? { revocationChecker: opts.revocationChecker } : {}),
     ...(requestParams !== undefined ? { requestParams } : {}),
+    ...(opts.requestedAction !== undefined ? { requestedAction: opts.requestedAction } : {}),
   })
 }

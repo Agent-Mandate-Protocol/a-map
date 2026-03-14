@@ -21,7 +21,7 @@ export async function issue(opts: IssueOptions): Promise<DelegationToken> {
     tokenId: randomUUID(),
     parentTokenHash: null,
     principal: opts.principal,
-    issuer: opts.issuerDid,
+    issuer: opts.principal,
     delegate: opts.delegate,
     permissions: opts.permissions,
     constraints: opts.constraints ?? {},

@@ -1,7 +1,7 @@
 import { computeDID } from '../crypto/did.js'
 
 export interface RegisterOptions {
-  /** Agent name — used in DID construction: `did:amap:{name}:{version}:{fingerprint}` */
+  /** Agent name — used in DID construction */
   name: string
   /** Agent version string, e.g. '1.0' */
   version: string
@@ -10,15 +10,16 @@ export interface RegisterOptions {
   /** Optional capability strings to publish alongside the key */
   capabilities?: string[]
   /**
-   * Registry URL to publish to.
-   * Default: 'https://registry.agentmandateprotocol.dev'
+   * Registry URL to publish to. Required in Phase 1 — the hosted registry
+   * (registry.agentmandateprotocol.dev) does not exist yet. Use your own
+   * registry or set up a local one. Phase 2 will add a default hosted URL.
    *
    * NOTE: register() is the ONLY function in @agentmandateprotocol/core that
    * makes a network call. All other functions (issue, delegate, verify,
    * signRequest, verifyRequest, revoke) work fully offline. register() is
-   * optional — use LocalRegistryClient for fully airgapped deployments.
+   * optional — use LocalKeyResolver for fully airgapped deployments.
    */
-  registryUrl?: string
+  registryUrl: string
 }
 
 /**
@@ -26,14 +27,14 @@ export interface RegisterOptions {
  *
  * Enables other parties to resolve your DID to your public key for mandate
  * chain verification. Optional — the core protocol works fully offline with
- * LocalRegistryClient.
+ * LocalKeyResolver.
  *
  * @returns The DID derived from the public key. Deterministic: same key always
  *   produces the same DID regardless of whether register() is called.
  */
 export async function register(opts: RegisterOptions): Promise<{ did: string }> {
-  const did = computeDID(opts.name, opts.version, opts.publicKey)
-  const url = `${opts.registryUrl ?? 'https://registry.agentmandateprotocol.dev'}/register`
+  const did = computeDID({ type: 'agent', name: opts.name, version: opts.version, publicKey: opts.publicKey })
+  const url = `${opts.registryUrl}/register`
 
   const body: Record<string, unknown> = { did, publicKey: opts.publicKey }
   if (opts.capabilities !== undefined) body['capabilities'] = opts.capabilities

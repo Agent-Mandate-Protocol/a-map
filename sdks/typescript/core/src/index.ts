@@ -33,14 +33,15 @@ export { sha256hex, sha256ofObject } from './crypto/hash.js'
 
 // Types (T3)
 export type { Keypair } from './crypto/keygen.js'
+export type { ComputeDIDOptions } from './crypto/did.js'
 export type { DelegationToken, DelegationTokenPayload } from './types/token.js'
 export type { Constraints } from './types/constraints.js'
 export { mergeConstraints, mergeConstraintChain } from './types/constraints.js'
 export type { VerificationResult, VerifiedLink } from './types/result.js'
 export type { NonceStore } from './types/nonce-store.js'
 export { InMemoryNonceStore } from './types/nonce-store.js'
-export type { AgentRegistry } from './types/registry.js'
-export { LocalRegistryClient } from './types/registry.js'
+export type { KeyResolver, RevocationChecker } from './types/registry.js'
+export { LocalKeyResolver } from './types/registry.js'
 
 // Errors (T3)
 export { AmapError } from './errors/amap-error.js'
@@ -58,7 +59,7 @@ export type {
 } from './api/types.js'
 
 // Revocation (T7)
-export type { RevocationNotice } from './api/revoke.js'
+export type { RevocationNotice, RevokeOptions } from './api/revoke.js'
 
 // Registry (T15)
 export type { RegisterOptions } from './api/register.js'
