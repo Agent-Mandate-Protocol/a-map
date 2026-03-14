@@ -9,6 +9,7 @@ import { InMemoryNonceStore } from '../types/nonce-store.js'
 import type { VerificationResult, VerifiedLink } from '../types/result.js'
 import type { VerifyOptions } from './types.js'
 import { assertConstraintsNotRelaxed } from './validate-constraints.js'
+import { evaluatePolicy } from './policy.js'
 
 export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
   const { chain } = opts
@@ -149,11 +150,28 @@ export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
   // Step 13: Compute effective constraints — most restrictive across all hops
   const effectiveConstraints = mergeConstraintChain(chain.map(t => t.constraints))
 
+  // Step 14: Allow/deny policy evaluation (optional — only when requestedAction is provided)
+  let appliedPolicy: VerificationResult['appliedPolicy'] | undefined
+  if (opts.requestedAction !== undefined) {
+    const decision = evaluatePolicy(opts.requestedAction, effectiveConstraints)
+    appliedPolicy = decision
+
+    if (decision.decision === 'EXPLICIT_DENY' || decision.decision === 'IMPLICIT_DENY') {
+      throw new AmapError(
+        AmapErrorCode.EXPLICIT_DENY,
+        decision.decision === 'EXPLICIT_DENY'
+          ? `Action "${opts.requestedAction}" is explicitly denied by rule "${decision.matchedRule}"`
+          : `Action "${opts.requestedAction}" is not permitted (implicit deny — not in allowedActions)`,
+      )
+    }
+  }
+
   return {
     valid: true,
     principal: chain[0]!.principal,
     chain: verifiedLinks,
     effectiveConstraints,
     auditId: randomUUID(),
+    ...(appliedPolicy !== undefined ? { appliedPolicy } : {}),
   }
 }

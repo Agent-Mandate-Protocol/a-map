@@ -132,6 +132,55 @@ describe('assertConstraintsNotRelaxed — rateLimit', () => {
   })
 })
 
+describe('assertConstraintsNotRelaxed — deniedActions', () => {
+  it('throws CONSTRAINT_RELAXATION when child removes a parent deny entry', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { deniedActions: ['rm*', 'sudo*'] },
+        { deniedActions: ['rm*'] }, // missing sudo*
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('does NOT throw when child adds a new deny entry', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { deniedActions: ['rm*'] },
+        { deniedActions: ['rm*', 'sudo*'] },
+      ),
+    ).not.toThrow()
+  })
+
+  it('does NOT throw when child has no deniedActions (merge will union them in)', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { deniedActions: ['rm*'] },
+        {},
+      ),
+    ).not.toThrow()
+  })
+})
+
+describe('assertConstraintsNotRelaxed — allowedActions wildcard', () => {
+  it('throws CONSTRAINT_RELAXATION when child tries to expand allowedActions to wildcard', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { allowedActions: ['npm', 'git'] },
+        { allowedActions: ['*'] },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('does NOT throw when parent has wildcard and child narrows to explicit list', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { allowedActions: ['*'] },
+        { allowedActions: ['npm'] },
+      ),
+    ).not.toThrow()
+  })
+})
+
 describe('assertConstraintsNotRelaxed — allowedActions', () => {
   it('throws CONSTRAINT_RELAXATION when candidate adds an action not in parent', () => {
     expect(() =>

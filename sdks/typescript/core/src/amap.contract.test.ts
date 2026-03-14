@@ -917,3 +917,121 @@ describe('core safety guarantees', () => {
     ).rejects.toMatchObject({ code: AmapErrorCode.PERMISSION_INFLATION })
   })
 })
+
+// ─── Allow/Deny Policy Engine ──────────────────────────────────────────────
+
+describe('allow/deny policy engine — verify() with requestedAction', () => {
+  it('throws EXPLICIT_DENY when requestedAction matches deniedActions (Developer preset)', async () => {
+    const pk = makeParty('pk')
+    const agent = makeParty('agent')
+    const keyResolver = new LocalKeyResolver(new Map([
+      [pk.did, pk.keys.publicKey],
+      [agent.did, agent.keys.publicKey],
+    ]))
+
+    const token = await amap.issue({
+      principal: pk.did,
+      delegate: agent.did,
+      permissions: ['shell.exec'],
+      constraints: { ...amap.presets.Developer },
+      expiresIn: '1h',
+      privateKey: pk.keys.privateKey,
+    })
+
+    await expect(
+      amap.verify({
+        chain: [token],
+        requestedAction: 'rm -rf /',
+        keyResolver,
+        nonceStore: new InMemoryNonceStore(),
+      }),
+    ).rejects.toMatchObject({ code: AmapErrorCode.EXPLICIT_DENY })
+  })
+
+  it('returns WILDCARD_ALLOW for permitted action under Developer preset', async () => {
+    const pk = makeParty('pk')
+    const agent = makeParty('agent')
+    const keyResolver = new LocalKeyResolver(new Map([
+      [pk.did, pk.keys.publicKey],
+      [agent.did, agent.keys.publicKey],
+    ]))
+
+    const token = await amap.issue({
+      principal: pk.did,
+      delegate: agent.did,
+      permissions: ['shell.exec'],
+      constraints: { ...amap.presets.Developer },
+      expiresIn: '1h',
+      privateKey: pk.keys.privateKey,
+    })
+
+    const result = await amap.verify({
+      chain: [token],
+      requestedAction: 'npm install express',
+      keyResolver,
+      nonceStore: new InMemoryNonceStore(),
+    })
+
+    expect(result.valid).toBe(true)
+    expect(result.appliedPolicy?.decision).toBe('WILDCARD_ALLOW')
+  })
+
+  it('returns IMPLICIT_DENY result for action not in ReadOnly preset', async () => {
+    const pk = makeParty('pk')
+    const agent = makeParty('agent')
+    const keyResolver = new LocalKeyResolver(new Map([
+      [pk.did, pk.keys.publicKey],
+      [agent.did, agent.keys.publicKey],
+    ]))
+
+    const token = await amap.issue({
+      principal: pk.did,
+      delegate: agent.did,
+      permissions: ['shell.exec'],
+      constraints: { ...amap.presets.ReadOnly },
+      expiresIn: '1h',
+      privateKey: pk.keys.privateKey,
+    })
+
+    await expect(
+      amap.verify({
+        chain: [token],
+        requestedAction: 'rm -rf /',
+        keyResolver,
+        nonceStore: new InMemoryNonceStore(),
+      }),
+    ).rejects.toMatchObject({ code: AmapErrorCode.EXPLICIT_DENY })
+  })
+
+  it('no appliedPolicy when requestedAction is not provided', async () => {
+    const pk = makeParty('pk')
+    const agent = makeParty('agent')
+    const keyResolver = new LocalKeyResolver(new Map([
+      [pk.did, pk.keys.publicKey],
+      [agent.did, agent.keys.publicKey],
+    ]))
+
+    const token = await amap.issue({
+      principal: pk.did,
+      delegate: agent.did,
+      permissions: ['read_email'],
+      expiresIn: '15m',
+      privateKey: pk.keys.privateKey,
+    })
+
+    const result = await amap.verify({
+      chain: [token],
+      keyResolver,
+      nonceStore: new InMemoryNonceStore(),
+    })
+
+    expect(result.appliedPolicy).toBeUndefined()
+  })
+
+  it('amap.presets is accessible on the amap namespace', () => {
+    expect(amap.presets.Developer).toBeDefined()
+    expect(amap.presets.ReadOnly).toBeDefined()
+    expect(amap.presets.CiCd).toBeDefined()
+    expect(amap.presets.GodMode).toBeDefined()
+  })
+})

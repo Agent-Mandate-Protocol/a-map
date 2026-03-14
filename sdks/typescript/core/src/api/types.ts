@@ -62,8 +62,8 @@ export interface VerifyOptions {
    */
   requestParams?: Record<string, unknown>
   /**
-   * Action string for IAM policy evaluation (T17).
-   * If provided, the IAM policy engine evaluates the action against the chain.
+   * Action string for allow/deny policy evaluation.
+   * If provided, the action is evaluated against deniedActions/allowedActions in the chain.
    */
   requestedAction?: string
 }
@@ -107,7 +107,8 @@ export interface VerifyRequestOptions {
    */
   expectedPermission?: string
   /**
-   * Action string for IAM policy evaluation (T17).
+   * Action string for allow/deny policy evaluation.
+   * If provided, the action is evaluated against deniedActions/allowedActions in the chain.
    */
   requestedAction?: string
 }

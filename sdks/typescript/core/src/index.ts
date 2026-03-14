@@ -7,6 +7,7 @@ import { verify } from './api/verify.js'
 import { revoke } from './api/revoke.js'
 import { signRequest } from './api/sign-request.js'
 import { verifyRequest } from './api/verify-request.js'
+import { AmapPresets } from './api/presets.js'
 
 /**
  * The amap namespace — the primary public API surface.
@@ -22,6 +23,7 @@ export const amap = {
   signRequest,
   verifyRequest,
   revoke,
+  presets: AmapPresets,
 }
 
 // Named exports for consumers who prefer them
@@ -63,3 +65,10 @@ export type { RevocationNotice, RevokeOptions } from './api/revoke.js'
 
 // Registry (T15)
 export type { RegisterOptions } from './api/register.js'
+
+// Policy (T17)
+export { evaluatePolicy, matchesGlob } from './api/policy.js'
+export type { PolicyDecision } from './api/policy.js'
+
+// Presets (T17)
+export { AmapPresets } from './api/presets.js'

@@ -78,6 +78,69 @@ describe('mergeConstraints', () => {
   })
 })
 
+describe('mergeConstraints — deniedActions (union)', () => {
+  it('union: both sides merged', () => {
+    const result = mergeConstraints(
+      { deniedActions: ['rm*'] },
+      { deniedActions: ['sudo*'] },
+    )
+    expect(result.deniedActions).toContain('rm*')
+    expect(result.deniedActions).toContain('sudo*')
+  })
+
+  it('child adds new deny — allowed', () => {
+    const result = mergeConstraints(
+      { deniedActions: ['rm*'] },
+      { deniedActions: ['rm*', 'sudo*'] },
+    )
+    expect(result.deniedActions).toHaveLength(2)
+  })
+
+  it('absent deniedActions on child side — parent preserved', () => {
+    const result = mergeConstraints({ deniedActions: ['rm*'] }, {})
+    expect(result.deniedActions).toEqual(['rm*'])
+  })
+
+  it('absent deniedActions on parent side — child preserved', () => {
+    const result = mergeConstraints({}, { deniedActions: ['sudo*'] })
+    expect(result.deniedActions).toEqual(['sudo*'])
+  })
+
+  it('deduplicates identical entries', () => {
+    const result = mergeConstraints(
+      { deniedActions: ['rm*', 'sudo*'] },
+      { deniedActions: ['rm*', 'sudo*'] },
+    )
+    expect(result.deniedActions).toHaveLength(2)
+  })
+})
+
+describe('mergeConstraints — allowedActions wildcard', () => {
+  it('parent wildcard + child explicit list → child list (narrowing)', () => {
+    const result = mergeConstraints(
+      { allowedActions: ['*'] },
+      { allowedActions: ['npm', 'git'] },
+    )
+    expect(result.allowedActions).toEqual(['npm', 'git'])
+  })
+
+  it('both wildcard → wildcard', () => {
+    const result = mergeConstraints(
+      { allowedActions: ['*'] },
+      { allowedActions: ['*'] },
+    )
+    expect(result.allowedActions).toEqual(['*'])
+  })
+
+  it('child wildcard + parent explicit → parent list (child cannot widen)', () => {
+    const result = mergeConstraints(
+      { allowedActions: ['npm', 'git'] },
+      { allowedActions: ['*'] },
+    )
+    expect(result.allowedActions).toEqual(['npm', 'git'])
+  })
+})
+
 describe('mergeConstraintChain', () => {
   it('applies most restrictive across multiple hops', () => {
     const result = mergeConstraintChain([

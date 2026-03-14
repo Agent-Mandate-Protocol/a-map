@@ -60,22 +60,64 @@ export function assertConstraintsNotRelaxed(
   }
 
   if (mergedParent.allowedDomains !== undefined && candidate.allowedDomains !== undefined) {
-    const illegal = candidate.allowedDomains.filter(d => !mergedParent.allowedDomains!.includes(d))
-    if (illegal.length > 0) {
-      throw new AmapError(
-        AmapErrorCode.CONSTRAINT_RELAXATION,
-        `allowedDomains contains domains not permitted by parent: ${illegal.join(', ')}`,
-      )
+    const parentDomainsArr = mergedParent.allowedDomains as string[]
+    const candidateDomainsArr = candidate.allowedDomains as string[]
+    if (!parentDomainsArr.includes('*')) {
+      const illegal = candidateDomainsArr.filter(d => !parentDomainsArr.includes(d))
+      if (illegal.length > 0) {
+        throw new AmapError(
+          AmapErrorCode.CONSTRAINT_RELAXATION,
+          `allowedDomains contains domains not permitted by parent: ${illegal.join(', ')}`,
+        )
+      }
     }
   }
 
   if (mergedParent.allowedActions !== undefined && candidate.allowedActions !== undefined) {
-    const illegal = candidate.allowedActions.filter(a => !mergedParent.allowedActions!.includes(a))
-    if (illegal.length > 0) {
+    const parentActionsArr = mergedParent.allowedActions as string[]
+    const candidateActionsArr = candidate.allowedActions as string[]
+    const parentHasWild = parentActionsArr.includes('*')
+    const candidateHasWild = candidateActionsArr.includes('*')
+    // Child cannot expand to wildcard when parent has an explicit list
+    if (!parentHasWild && candidateHasWild) {
       throw new AmapError(
         AmapErrorCode.CONSTRAINT_RELAXATION,
-        `allowedActions contains actions not permitted by parent: ${illegal.join(', ')}`,
+        'allowedActions: child cannot expand to wildcard when parent has explicit list',
       )
+    }
+    // When parent has wildcard, any explicit child list is a valid narrowing — skip subset check
+    if (!candidateHasWild && !parentHasWild) {
+      const illegal = candidateActionsArr.filter(a => !parentActionsArr.includes(a))
+      if (illegal.length > 0) {
+        throw new AmapError(
+          AmapErrorCode.CONSTRAINT_RELAXATION,
+          `allowedActions contains actions not permitted by parent: ${illegal.join(', ')}`,
+        )
+      }
+    }
+  }
+
+  // deniedActions: child cannot remove a deny entry set by parent
+  if (mergedParent.deniedActions !== undefined && candidate.deniedActions !== undefined) {
+    for (const denied of mergedParent.deniedActions) {
+      if (!candidate.deniedActions.includes(denied)) {
+        throw new AmapError(
+          AmapErrorCode.CONSTRAINT_RELAXATION,
+          `deniedActions: child removed parent deny entry "${denied}"`,
+        )
+      }
+    }
+  }
+
+  // deniedDomains: same — child cannot remove a domain deny set by parent
+  if (mergedParent.deniedDomains !== undefined && candidate.deniedDomains !== undefined) {
+    for (const denied of mergedParent.deniedDomains) {
+      if (!candidate.deniedDomains.includes(denied)) {
+        throw new AmapError(
+          AmapErrorCode.CONSTRAINT_RELAXATION,
+          `deniedDomains: child removed parent deny entry "${denied}"`,
+        )
+      }
     }
   }
 

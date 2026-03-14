@@ -1,5 +1,6 @@
 import type { DelegationToken } from './token.js'
 import type { Constraints } from './constraints.js'
+import type { PolicyDecision } from '../api/policy.js'
 
 /** One verified hop in the delegation chain. */
 export interface VerifiedLink {
@@ -37,14 +38,10 @@ export interface VerificationResult {
   auditId: string
 
   /**
-   * IAM policy evaluation result. Populated by T17 (IAM Policy Engine).
-   * Absent when no policy was evaluated (e.g. no requestedAction provided).
+   * Allow/deny policy evaluation result. Populated when requestedAction is provided.
+   * Absent when no policy was evaluated.
    */
-  appliedPolicy?: {
-    action: string
-    decision: 'ALLOW' | 'DENY'
-    matchedRule?: string
-  }
+  appliedPolicy?: PolicyDecision
 
   /** Present when valid is false. */
   error?: {

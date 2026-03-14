@@ -36,14 +36,31 @@ export interface Constraints {
 
   /**
    * Restricts calls to these domains only. Merge: intersection (narrowing only).
-   * An empty intersection is invalid and throws CONSTRAINT_RELAXATION.
+   * '*' means allow all domains — used as the wildcard base for god-mode patterns.
    */
-  allowedDomains?: string[]
+  allowedDomains?: string[] | ['*']
 
   /**
-   * Restricts HTTP methods/actions allowed. Merge: intersection (narrowing only).
+   * Explicit domain deny list. ALWAYS wins over allowedDomains.
+   * Merge: UNION (grows through the chain — a child cannot remove a parent deny).
+   * Supports glob patterns: '~/.ssh/**', '~/.aws/**'.
    */
-  allowedActions?: string[]
+  deniedDomains?: string[]
+
+  /**
+   * Allowed actions. Merge: intersection.
+   * '*' means allow all actions — used as the wildcard base for god-mode patterns.
+   * Example: ['shell.exec', 'fs.read'] or ['*']
+   */
+  allowedActions?: string[] | ['*']
+
+  /**
+   * Explicit action deny list. ALWAYS wins over allowedActions.
+   * Merge: UNION (grows through the chain — a child cannot remove a parent deny).
+   * Supports glob patterns: 'rm*', '*delete*', 'kubectl*'.
+   * Example: ['rm -rf', 'sudo*', 'kubectl delete']
+   */
+  deniedActions?: string[]
 
   /**
    * Locks specific request parameters to exact values.
@@ -93,22 +110,73 @@ export function mergeConstraints(parent: Constraints, child: Constraints): Const
     merged.readOnly = true
   }
 
-  // allowedDomains: intersection
-  if (parent.allowedDomains !== undefined && child.allowedDomains !== undefined) {
-    merged.allowedDomains = parent.allowedDomains.filter(d => child.allowedDomains!.includes(d))
-  } else if (parent.allowedDomains !== undefined) {
-    merged.allowedDomains = parent.allowedDomains
-  } else if (child.allowedDomains !== undefined) {
-    merged.allowedDomains = child.allowedDomains
+  // Helper: check if a string[] | ['*'] includes the wildcard
+  const hasWild = (arr: string[] | ['*'] | undefined): boolean =>
+    arr !== undefined && (arr as string[]).includes('*')
+
+  // allowedDomains: intersection with wildcard handling
+  // - parent ['*'] + child explicit → child list (narrowing)
+  // - parent explicit + child ['*'] → parent list (child can't widen an explicit list)
+  // - parent undefined + child ['*'] → ['*'] (child introduces wildcard for first time)
+  // - both explicit → intersection
+  // - both ['*'] → ['*']
+  if (parent.allowedDomains !== undefined || child.allowedDomains !== undefined) {
+    const parentWild = hasWild(parent.allowedDomains)
+    const childWild = hasWild(child.allowedDomains)
+    if (parentWild && childWild) {
+      merged.allowedDomains = ['*']
+    } else if (parentWild) {
+      merged.allowedDomains = child.allowedDomains ?? ['*']
+    } else if (childWild) {
+      if (parent.allowedDomains !== undefined) {
+        merged.allowedDomains = parent.allowedDomains as string[]
+      } else {
+        merged.allowedDomains = child.allowedDomains as ['*']
+      }
+    } else if (parent.allowedDomains !== undefined && child.allowedDomains !== undefined) {
+      merged.allowedDomains = (parent.allowedDomains as string[]).filter(
+        d => (child.allowedDomains as string[]).includes(d),
+      )
+    } else {
+      merged.allowedDomains = (parent.allowedDomains ?? child.allowedDomains) as string[]
+    }
   }
 
-  // allowedActions: intersection
-  if (parent.allowedActions !== undefined && child.allowedActions !== undefined) {
-    merged.allowedActions = parent.allowedActions.filter(a => child.allowedActions!.includes(a))
-  } else if (parent.allowedActions !== undefined) {
-    merged.allowedActions = parent.allowedActions
-  } else if (child.allowedActions !== undefined) {
-    merged.allowedActions = child.allowedActions
+  // deniedDomains: union — grows through chain, never shrinks
+  if (parent.deniedDomains !== undefined || child.deniedDomains !== undefined) {
+    const parentDenied = parent.deniedDomains ?? []
+    const childDenied = child.deniedDomains ?? []
+    merged.deniedDomains = [...new Set([...parentDenied, ...childDenied])]
+  }
+
+  // allowedActions: same wildcard-intersection semantics as allowedDomains
+  if (parent.allowedActions !== undefined || child.allowedActions !== undefined) {
+    const parentWild = hasWild(parent.allowedActions)
+    const childWild = hasWild(child.allowedActions)
+    if (parentWild && childWild) {
+      merged.allowedActions = ['*']
+    } else if (parentWild) {
+      merged.allowedActions = child.allowedActions ?? ['*']
+    } else if (childWild) {
+      if (parent.allowedActions !== undefined) {
+        merged.allowedActions = parent.allowedActions as string[]
+      } else {
+        merged.allowedActions = child.allowedActions as ['*']
+      }
+    } else if (parent.allowedActions !== undefined && child.allowedActions !== undefined) {
+      merged.allowedActions = (parent.allowedActions as string[]).filter(
+        a => (child.allowedActions as string[]).includes(a),
+      )
+    } else {
+      merged.allowedActions = (parent.allowedActions ?? child.allowedActions) as string[]
+    }
+  }
+
+  // deniedActions: union — grows through chain, never shrinks
+  if (parent.deniedActions !== undefined || child.deniedActions !== undefined) {
+    const parentDenied = parent.deniedActions ?? []
+    const childDenied = child.deniedActions ?? []
+    merged.deniedActions = [...new Set([...parentDenied, ...childDenied])]
   }
 
   // parameterLocks: union — parent locks take precedence, child may only add new keys
