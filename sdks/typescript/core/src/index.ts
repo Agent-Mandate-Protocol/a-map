@@ -4,7 +4,8 @@ import { issue } from './api/issue.js'
 import { delegate } from './api/delegate.js'
 import { verify } from './api/verify.js'
 import { revoke } from './api/revoke.js'
-import { signRequest, verifyRequest } from './api/stubs.js'
+import { signRequest } from './api/sign-request.js'
+import { verifyRequest } from './api/verify-request.js'
 
 /**
  * The amap namespace — the primary public API surface.

@@ -88,4 +88,10 @@ export interface VerifyRequestOptions {
   requestParams?: Record<string, unknown>
   nonceStore?: NonceStore
   registry?: AgentRegistry
+  /**
+   * If provided, verify() will check this permission is in the chain's leaf permissions.
+   * If absent, no permission check is performed — the tool provider reads
+   * result.chain[last].token.permissions and checks itself.
+   */
+  expectedPermission?: string
 }
