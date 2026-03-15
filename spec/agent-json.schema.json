@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentmandateprotocol.dev/spec/agent-json/1.0",
+  "title": "agent.json",
+  "description": "Service discovery manifest for A-MAP-protected APIs. Served at /.well-known/agent.json. Enables agents to discover required permissions, constraints, and key material before making calls — without guessing from documentation.",
+  "type": "object",
+  "required": ["amap", "did"],
+  "properties": {
+    "amap": {
+      "type": "string",
+      "description": "A-MAP protocol version this service implements. Agents use this to detect incompatible versions before attempting a call.",
+      "enum": ["1.0"],
+      "examples": ["1.0"]
+    },
+    "did": {
+      "type": "string",
+      "description": "DID of this service in did:amap format. Used by agents to identify the service in mandate chains and to resolve the service's public key.",
+      "pattern": "^did:amap:.+$",
+      "examples": ["did:amap:email-api:1.0:abc123def456"]
+    },
+    "requiresDelegationChain": {
+      "type": "boolean",
+      "description": "If true, all incoming requests must carry a valid X-AMAP-Mandate header. Services that partially support A-MAP (e.g., only for admin routes) may set this to false.",
+      "default": true
+    },
+    "requiredPermissions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Permission strings the agent must hold in its mandate chain to call this service. Agents should request exactly these permissions from the human before obtaining a mandate. Format follows OAuth 2.1 resource:action convention (e.g. \"email:read\", \"github:push\").",
+      "examples": [
+        ["email:read"],
+        ["email:send", "contacts:read"],
+        ["github:read", "github:push"]
+      ]
+    },
+    "constraints": {
+      "type": "object",
+      "description": "Constraints this service enforces on incoming mandates. Agents should ensure the mandate they carry satisfies these before calling. Constraint keys match the A-MAP Constraints vocabulary.",
+      "properties": {
+        "maxCalls": {
+          "type": "number",
+          "description": "Maximum API calls the service will honour per mandate lifetime.",
+          "examples": [100, 1000]
+        },
+        "maxSpend": {
+          "type": "number",
+          "description": "Maximum monetary spend (in USD) the service will execute under a single mandate.",
+          "examples": [10, 500]
+        },
+        "rateLimit": {
+          "type": "object",
+          "description": "Rate limit enforced by the service.",
+          "required": ["count", "windowSeconds"],
+          "properties": {
+            "count": {
+              "type": "number",
+              "description": "Maximum number of calls within the window.",
+              "examples": [10, 60]
+            },
+            "windowSeconds": {
+              "type": "number",
+              "description": "Window size in seconds.",
+              "examples": [60, 3600]
+            }
+          }
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "If true, the service only accepts read operations. The mandate must have readOnly: true.",
+          "examples": [true]
+        },
+        "allowedActions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "HTTP methods or named actions this service accepts. If present, the mandate's allowedActions must be a subset.",
+          "examples": [["GET"], ["GET", "POST"]]
+        }
+      },
+      "additionalProperties": true
+    },
+    "registryUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the A-MAP registry where DIDs can be resolved to public keys. Agents that do not have the service's public key cached locally use this to fetch it. Omit if the service relies on inline publicKey for fully offline resolution.",
+      "examples": ["https://registry.agentmandateprotocol.dev"]
+    },
+    "publicKey": {
+      "type": "string",
+      "description": "base64url-encoded Ed25519 public key of this service. When present, agents can verify service-level signatures fully offline without contacting a registry. Recommended for air-gapped or latency-sensitive deployments.",
+      "examples": ["MCowBQYDK2VdAyEA4e7K9pLq2R8sT3mZ1vY0wX6nF5hA2bC3dE7gH9iJ0kL"]
+    },
+    "contact": {
+      "type": "string",
+      "description": "Security contact email or URL. Used by agents, auditors, and automated tooling to report mandate violations or suspected abuse.",
+      "examples": ["security@example.com", "https://example.com/security"]
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of this service. Displayed in consent UIs and audit logs.",
+      "examples": ["Acme Email API", "GitHub Integration"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of what this service does. Displayed in consent UIs to help users understand what they are authorising.",
+      "examples": ["Send and receive emails on behalf of the authorised agent."]
+    },
+    "docsUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL to the service's A-MAP integration documentation. Agents and developers can fetch this to understand available endpoints and permission scopes.",
+      "examples": ["https://docs.example.com/amap"]
+    }
+  },
+  "additionalProperties": true,
+  "examples": [
+    {
+      "amap": "1.0",
+      "did": "did:amap:email-api:1.0:abc123def456",
+      "name": "Acme Email API",
+      "description": "Send and receive emails on behalf of the authorised agent.",
+      "requiresDelegationChain": true,
+      "requiredPermissions": ["email:read"],
+      "constraints": { "maxCalls": 100 },
+      "registryUrl": "https://registry.agentmandateprotocol.dev",
+      "publicKey": "MCowBQYDK2VdAyEA4e7K9pLq2R8sT3mZ1vY0wX6nF5hA2bC3dE7gH9iJ0kL",
+      "contact": "security@example.com"
+    },
+    {
+      "amap": "1.0",
+      "did": "did:amap:github-integration:2.0:xyz789",
+      "name": "GitHub Integration",
+      "requiresDelegationChain": true,
+      "requiredPermissions": ["github:read", "github:push"],
+      "constraints": {
+        "maxCalls": 500,
+        "allowedActions": ["GET", "POST", "PATCH"]
+      },
+      "registryUrl": "https://registry.agentmandateprotocol.dev",
+      "docsUrl": "https://docs.example.com/github-amap"
+    }
+  ]
+}

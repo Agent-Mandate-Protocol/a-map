@@ -66,6 +66,10 @@ export type { RevocationNotice, RevokeOptions } from './api/revoke.js'
 // Registry (T15)
 export type { RegisterOptions } from './api/register.js'
 
+// Spec (T12) — /.well-known/agent.json
+export type { AgentJson } from './spec/agent-json.js'
+export { createAgentJson, fetchAgentJson } from './spec/agent-json.js'
+
 // Policy (T17)
 export { evaluatePolicy, matchesGlob } from './api/policy.js'
 export type { PolicyDecision } from './api/policy.js'

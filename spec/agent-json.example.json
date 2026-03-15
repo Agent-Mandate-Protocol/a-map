@@ -1,0 +1,17 @@
+{
+  "amap": "1.0",
+  "did": "did:amap:email-api:1.0:abc123def456",
+  "name": "Acme Email API",
+  "description": "Send and receive emails on behalf of the authorised agent.",
+  "requiresDelegationChain": true,
+  "requiredPermissions": ["email:read", "email:send"],
+  "constraints": {
+    "maxCalls": 100,
+    "rateLimit": { "count": 10, "windowSeconds": 60 },
+    "allowedActions": ["GET", "POST"]
+  },
+  "registryUrl": "https://registry.agentmandateprotocol.dev",
+  "publicKey": "MCowBQYDK2VdAyEA4e7K9pLq2R8sT3mZ1vY0wX6nF5hA2bC3dE7gH9iJ0kL",
+  "contact": "security@acme.com",
+  "docsUrl": "https://docs.acme.com/api/amap"
+}
