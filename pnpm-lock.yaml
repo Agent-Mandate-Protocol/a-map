@@ -92,6 +92,10 @@ importers:
         version: 1.6.1(@types/node@18.19.130)
 
   sdks/typescript/openclaw:
+    dependencies:
+      '@agentmandateprotocol/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       typescript:
         specifier: '*'

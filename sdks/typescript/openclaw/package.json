@@ -19,6 +19,9 @@
     "lint": "eslint src",
     "clean": "rm -rf dist"
   },
+  "dependencies": {
+    "@agentmandateprotocol/core": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "*",
     "vitest": "*"
