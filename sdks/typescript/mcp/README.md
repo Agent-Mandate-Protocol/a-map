@@ -168,9 +168,9 @@ Every call produces a structured entry with the tool name, timestamp, mandate ID
 Rules are matched in this order:
 1. Exact tool name (`'filesystem/deleteFile'`)
 2. Catch-all (`'*'`)
-3. No match: the tool name itself is used as the required permission
+3. No match: `tool:{toolName}` is used as the required permission
 
-If a tool has no rule and no catch-all, the guard requires that the tool name appear in the mandate's permissions. This is the safest default — unknown tools are implicitly blocked unless explicitly permitted.
+If a tool has no rule and no catch-all, the guard requires `tool:{toolName}` in the mandate's permissions. For example, calling `'shell/execute'` with no matching rule requires the permission `'tool:shell/execute'`. This is the safest default — unknown tools are implicitly blocked unless explicitly permitted.
 
 ### Three scenarios
 
@@ -217,6 +217,7 @@ const keyResolver = new LocalKeyResolver(new Map([
 server.tool('amap_issue', amapIssueToolDefinition.inputSchema, handleAmapIssue)
 
 // Protect your tool — one import, one wrap
+// Default required permission: 'tool:send_email'
 server.tool('send_email', emailSchema,
   amapProtect('send_email', async ({ to, subject, body }, mandate) => {
     console.log(`Authorized by: ${mandate.principal}`)
@@ -269,7 +270,7 @@ On failure: throws `AmapError`. The MCP framework converts it to a structured er
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `requiredPermission` | `string` | `toolName` | Permission the mandate must include |
+| `requiredPermission` | `string` | `` `tool:{toolName}` `` | Permission the mandate must include |
 | `requestedAction` | `string` | *(none)* | If set, evaluates allow/deny policy against this action |
 | `keyResolver` | `KeyResolver` | *(none)* | Resolves DIDs to public keys |
 | `nonceStore` | `NonceStore` | new `InMemoryNonceStore` | Tracks nonces for replay prevention |

@@ -2,6 +2,8 @@
   "name": "@agentmandateprotocol/middleware",
   "version": "0.0.1",
   "description": "A-MAP middleware for Express/Hono/fetch",
+  "license": "MIT",
+  "author": "Agent Mandate Protocol",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +20,17 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@agentmandateprotocol/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0",
+    "hono": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": { "optional": true },
+    "hono": { "optional": true }
   },
   "devDependencies": {
     "typescript": "*",

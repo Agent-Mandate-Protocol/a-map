@@ -2,7 +2,7 @@ import { amap, AmapError, AmapErrorCode } from '@agentmandateprotocol/core'
 import type { VerificationResult, KeyResolver, NonceStore } from '@agentmandateprotocol/core'
 
 export interface AmapProtectOptions {
-  /** The permission required to call this tool. Defaults to the toolName argument. */
+  /** The permission required to call this tool. Defaults to `tool:{toolName}`. */
   requiredPermission?: string
   /** The action string for allow/deny policy evaluation. Defaults to the toolName argument. */
   requestedAction?: string
@@ -56,7 +56,7 @@ export function amapProtect<TInput extends Record<string, unknown>, TOutput>(
       method: envelope.method ?? 'POST',
       path: envelope.path ?? `/mcp/${toolName}`,
       ...(envelope.body !== undefined ? { body: envelope.body } : {}),
-      expectedPermission: options.requiredPermission ?? toolName,
+      expectedPermission: options.requiredPermission ?? `tool:${toolName}`,
       ...(options.requestedAction !== undefined ? { requestedAction: options.requestedAction } : {}),
       ...(options.keyResolver !== undefined ? { keyResolver: options.keyResolver } : {}),
       ...(options.nonceStore !== undefined ? { nonceStore: options.nonceStore } : {}),

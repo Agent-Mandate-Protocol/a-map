@@ -84,7 +84,7 @@ export class AmapGuard {
 
   private resolveRule(toolName: string): ToolRule {
     const rules = this.options.rules ?? {}
-    return rules[toolName] ?? rules['*'] ?? { requires: [toolName] }
+    return rules[toolName] ?? rules['*'] ?? { requires: [`tool:${toolName}`] }
   }
 
   async callTool(toolName: string, params: Record<string, unknown>): Promise<unknown> {

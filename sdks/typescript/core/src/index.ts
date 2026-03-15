@@ -72,3 +72,11 @@ export type { PolicyDecision } from './api/policy.js'
 
 // Presets (T17)
 export { AmapPresets } from './api/presets.js'
+
+/**
+ * Build a permission string in OAuth 2.1 `resource:action` format.
+ *
+ * @example scope('email', 'send')   // → 'email:send'
+ * @example scope('github', 'push')  // → 'github:push'
+ */
+export const scope = (resource: string, action: string): string => `${resource}:${action}`

@@ -66,12 +66,12 @@ describe('AmapGuard', () => {
     })
 
     it('defaults required permission to the tool name when no rule is set', async () => {
-      const { token, keyResolver } = await makeMandate(['shell/execute'])
+      const { token, keyResolver } = await makeMandate(['tool:shell/execute'])
       const client = makeMockClient()
 
       const guard = new AmapGuard(client, { mandate: [token], keyResolver })
 
-      // 'shell/execute' is in permissions — should pass
+      // 'tool:shell/execute' is in permissions — should pass
       await guard.callTool('shell/execute', { cmd: 'ls' })
       expect(client.callTool).toHaveBeenCalledOnce()
     })
@@ -148,7 +148,7 @@ describe('AmapGuard', () => {
 
   describe('audit logging', () => {
     it('calls onAudit for every allowed call', async () => {
-      const { token, keyResolver, issuerDid } = await makeMandate(['my/tool'])
+      const { token, keyResolver, issuerDid } = await makeMandate(['tool:my/tool'])
       const client = makeMockClient()
       const auditLog: AuditEntry[] = []
 
@@ -187,15 +187,15 @@ describe('AmapGuard', () => {
 
   describe('mandate verification', () => {
     it('verifies the mandate chain only once across multiple calls', async () => {
-      const { token, keyResolver } = await makeMandate(['tool:a', 'tool:b'])
+      const { token, keyResolver } = await makeMandate(['tool:readFile', 'tool:writeFile'])
       const client = makeMockClient()
       const verifySpy = vi.spyOn(amap, 'verify')
 
       const guard = new AmapGuard(client, { mandate: [token], keyResolver })
 
-      await guard.callTool('tool:a', {})
-      await guard.callTool('tool:b', {})
-      await guard.callTool('tool:a', {})
+      await guard.callTool('readFile', {})
+      await guard.callTool('writeFile', {})
+      await guard.callTool('readFile', {})
 
       expect(verifySpy).toHaveBeenCalledOnce()
       verifySpy.mockRestore()

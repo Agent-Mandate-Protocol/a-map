@@ -27,7 +27,7 @@ describe('amapProtect()', () => {
     const token = await amap.issue({
       principal: issuerDid,
       delegate: agentDid,
-      permissions: ['test_tool'],
+      permissions: ['tool:test_tool'],
       expiresIn: '1h',
       privateKey: issuerKeys.privateKey,
     })
