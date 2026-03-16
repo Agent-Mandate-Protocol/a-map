@@ -1,7 +1,7 @@
 {
   "name": "@agentmandateprotocol/mcp",
-  "version": "0.0.1",
-  "description": "A-MAP MCP integration — wrap any MCP tool with cryptographic agent authorization",
+  "version": "1.0.0",
+  "description": "A-MAP MCP integration — wrap any MCP tool with agent authorization and mandate verification",
   "license": "MIT",
   "author": "Agent Mandate Protocol",
   "type": "module",

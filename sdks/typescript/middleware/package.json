@@ -1,7 +1,7 @@
 {
   "name": "@agentmandateprotocol/middleware",
-  "version": "0.0.1",
-  "description": "A-MAP middleware for Express/Hono/fetch",
+  "version": "1.0.1",
+  "description": "A-MAP request verification middleware for Express, Hono, and fetch — drop-in agent authorization",
   "license": "MIT",
   "author": "Agent Mandate Protocol",
   "type": "module",
@@ -13,7 +13,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "test": "vitest run",
@@ -29,12 +31,18 @@
     "hono": ">=4.0.0"
   },
   "peerDependenciesMeta": {
-    "express": { "optional": true },
-    "hono": { "optional": true }
+    "express": {
+      "optional": true
+    },
+    "hono": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "typescript": "*",
     "vitest": "*"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

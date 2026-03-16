@@ -1,7 +1,7 @@
 {
   "name": "@agentmandateprotocol/core",
-  "version": "0.0.1",
-  "description": "Capability-based authorization for AI agents — cryptographic delegation chains",
+  "version": "1.0.1",
+  "description": "Cryptographic delegation chains for AI agent authorization — sign, verify, delegate",
   "license": "MIT",
   "author": "Agent Mandate Protocol",
   "repository": {
@@ -28,7 +28,10 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "test": "vitest run",
@@ -41,5 +44,7 @@
     "typescript": "*",
     "vitest": "*"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
