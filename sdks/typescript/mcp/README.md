@@ -427,7 +427,6 @@ class DatabaseKeyResolver implements KeyResolver {
 | `PERMISSION_INFLATION` | Agent claims or attempts an action beyond what the mandate grants |
 | `NONCE_REPLAYED` | This nonce has already been used |
 | `STALE_REQUEST` | Request timestamp is outside the ±5 minute window |
-| `MANDATE_HASH_MISMATCH` | The mandate presented doesn't match the signed hash |
 | `PARAMETER_LOCK_VIOLATION` | A locked parameter value doesn't match |
 | `EXPLICIT_DENY` | Action denied by `deniedActions`, or not in `allowedActions` |
 | `AGENT_REVOKED` | An agent in the chain has been revoked |

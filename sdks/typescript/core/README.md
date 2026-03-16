@@ -15,38 +15,35 @@ Requires Node.js 18+. Zero runtime dependencies — all crypto uses Node built-i
 ## Quick start
 
 ```typescript
-import { amap, LocalRegistryClient, InMemoryNonceStore } from '@agentmandateprotocol/core'
+import { amap, LocalKeyResolver, InMemoryNonceStore } from '@agentmandateprotocol/core'
 
 // 1. Generate keypairs
 const humanKeys = amap.keygen()
 const agentKeys = amap.keygen()
-const humanDid = amap.computeDID('alice', '1.0', humanKeys.publicKey)
-const agentDid = amap.computeDID('my-agent', '1.0', agentKeys.publicKey)
+const humanDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: humanKeys.publicKey })
+const agentDid = amap.computeDID({ type: 'agent', name: 'my-agent', version: '1.0', publicKey: agentKeys.publicKey })
 
 // 2. Human issues a mandate (read-only, 1 hour, max 50 calls)
 const mandate = await amap.issue({
-  principal: 'alice@example.com',
+  principal: humanDid,
   delegate: agentDid,
   permissions: ['read_email'],
   constraints: { maxCalls: 50 },
   expiresIn: '1h',
   privateKey: humanKeys.privateKey,
-  issuerDid: humanDid,
 })
 
 // 3. Agent signs each outgoing request
 const headers = amap.signRequest({
+  mandateChain: [mandate],
   method: 'GET',
   path: '/email/inbox',
-  body: null,
   privateKey: agentKeys.privateKey,
-  agentDid,
-  mandateChain: [mandate],
 })
 // → { 'X-AMAP-Agent-DID': '...', 'X-AMAP-Signature': '...', ... }
 
 // 4. Tool verifies the request (fully offline)
-const registry = new LocalRegistryClient(new Map([
+const keyResolver = new LocalKeyResolver(new Map([
   [humanDid, humanKeys.publicKey],
   [agentDid, agentKeys.publicKey],
 ]))
@@ -55,15 +52,14 @@ const result = await amap.verifyRequest({
   headers,
   method: 'GET',
   path: '/email/inbox',
-  body: null,
   expectedPermission: 'read_email',
-  registry,
+  keyResolver,
   nonceStore: new InMemoryNonceStore(),
 })
 
-console.log(result.valid)               // true
-console.log(result.principal)           // 'alice@example.com'
+console.log(result.principal)            // humanDid
 console.log(result.effectiveConstraints) // { maxCalls: 50 }
+console.log(result.auditId)              // UUID for audit trail
 ```
 
 ## What it does
@@ -91,8 +87,11 @@ const root = await amap.issue({ ..., constraints: { maxSpend: 500 }, ... })
 const child = await amap.delegate({
   parentToken: root,
   parentChain: [root],
-  constraints: { maxSpend: 200 }, // ← narrower, allowed
-  ...
+  delegate: agentBDid,
+  permissions: ['read_email'],    // must be subset of root.permissions
+  constraints: { maxSpend: 200 }, // can only tighten
+  expiresIn: '30m',               // cannot exceed root's remaining TTL
+  privateKey: agentAPrivateKey,
 })
 
 // Agent B cannot delegate with maxSpend: 400 — throws CONSTRAINT_RELAXATION at construction time
@@ -108,10 +107,10 @@ The three invariants enforced cryptographically:
 | Function | Description |
 |----------|-------------|
 | `amap.keygen()` | Generate an Ed25519 keypair (base64url) |
-| `amap.computeDID(name, version, publicKey)` | Derive a self-certifying DID from a public key |
+| `amap.computeDID({ type, name, publicKey, version? })` | Derive a self-certifying DID from a public key |
 | `amap.issue(opts)` | Issue a root delegation token (human → first agent) |
 | `amap.delegate(opts)` | Create a child token (enforces all 3 invariants before signing) |
-| `amap.verify(chain, opts)` | Verify a full delegation chain recursively — fully offline |
+| `amap.verify({ chain, ...opts })` | Verify a full delegation chain recursively — fully offline |
 | `amap.signRequest(opts)` | Sign an outgoing HTTP request; returns `X-AMAP-*` headers |
 | `amap.verifyRequest(opts)` | Verify an incoming signed request (both layers) |
 | `amap.revoke(did, privateKey)` | Produce a signed RevocationNotice |
@@ -134,6 +133,7 @@ All errors are `AmapError` with a typed `code`:
 | `AGENT_UNKNOWN` | DID cannot be resolved to a public key |
 | `PARAMETER_LOCK_VIOLATION` | Request param doesn't match value locked in mandate |
 | `STALE_REQUEST` | Request timestamp outside ±5 minute window |
+| `EXPLICIT_DENY` | Action denied by `deniedActions` or not in `allowedActions` |
 
 ## Constraints vocabulary
 
@@ -141,7 +141,7 @@ All errors are `AmapError` with a typed `code`:
 |-----|------|-----------|
 | `maxSpend` | `number` | min wins |
 | `maxCalls` | `number` | min wins |
-| `rateLimit` | `{ count, windowSeconds }` | min(count), max(windowSeconds) |
+| `rateLimit` | `{ count, windowSeconds }` | min(count), min(windowSeconds) |
 | `readOnly` | `boolean` | once `true`, always `true` |
 | `allowedDomains` | `string[]` | intersection |
 | `allowedActions` | `string[]` | intersection |
@@ -149,9 +149,9 @@ All errors are `AmapError` with a typed `code`:
 
 ## Production notes
 
-**⚠️ Distributed deployments:** `InMemoryNonceStore` is not safe behind a load balancer — each instance has separate memory, so replays routed to a different instance will pass. Use a shared store (Redis, Cloudflare KV) in multi-instance production. See `@agentmandateprotocol/middleware` for `CloudflareKVNonceStore`.
+**Distributed deployments:** `InMemoryNonceStore` is not safe behind a load balancer — each instance has separate memory, so replays routed to a different instance will pass. Use a shared store (Redis, Cloudflare KV) in multi-instance production. See `@agentmandateprotocol/middleware` for `CloudflareKVNonceStore`.
 
-**Offline verification:** `verify()` and `verifyRequest()` work fully airgapped with `LocalRegistryClient`. No network call required. Only `amap.register()` touches the network.
+**Offline verification:** `verify()` and `verifyRequest()` work fully airgapped with `LocalKeyResolver`. No network call required. Only `amap.register()` touches the network.
 
 ## Examples
 
