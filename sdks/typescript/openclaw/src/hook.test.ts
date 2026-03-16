@@ -121,6 +121,34 @@ describe('beforeToolCall()', () => {
       ).rejects.toMatchObject({ code: 'PERMISSION_INFLATION' })
     })
 
+    it('throws TOKEN_EXPIRED when session mandate has expired', async () => {
+      const issuerKeys = amap.keygen()
+      const agentKeys = amap.keygen()
+      const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
+      const agentDid = amap.computeDID({ type: 'agent', name: 'agent', version: '1.0', publicKey: agentKeys.publicKey })
+
+      const token = await amap.issue({
+        principal: issuerDid,
+        delegate: agentDid,
+        permissions: ['tool:read_file'],
+        expiresIn: '1s',
+        privateKey: issuerKeys.privateKey,
+      })
+
+      const keyResolver = new LocalKeyResolver(new Map([
+        [issuerDid, issuerKeys.publicKey],
+        [agentDid, agentKeys.publicKey],
+      ]))
+      const sessionStore = new SessionMandateStore()
+      await handleAmapRegisterSession('session-1', sessionStore, keyResolver)({ chain: [token] })
+
+      await new Promise(resolve => setTimeout(resolve, 1100))
+
+      await expect(
+        beforeToolCall({ path: '/home' }, { sessionId: 'session-1', toolName: 'read_file' }, { sessionStore }),
+      ).rejects.toMatchObject({ code: 'TOKEN_EXPIRED' })
+    })
+
     it('uses different sessions independently', async () => {
       const { chain: chainA, keyResolver: krA } = await makeChainAndKeys(['tool:email:send'])
       const { chain: chainB, keyResolver: krB } = await makeChainAndKeys(['tool:calendar:read'])

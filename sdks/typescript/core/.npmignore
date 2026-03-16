@@ -1,0 +1,7 @@
+# Ignore source maps in production
+dist/**/*.map
+src/
+tsconfig.json
+vitest.config.ts
+*.test.ts
+*.bench.ts

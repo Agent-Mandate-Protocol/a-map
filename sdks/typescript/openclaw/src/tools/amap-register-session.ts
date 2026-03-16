@@ -1,4 +1,4 @@
-import { amap, InMemoryNonceStore } from '@agentmandateprotocol/core'
+import { amap } from '@agentmandateprotocol/core'
 import type { DelegationToken, KeyResolver } from '@agentmandateprotocol/core'
 import type { SessionMandateStore } from '../session-store.js'
 
@@ -38,7 +38,6 @@ export function handleAmapRegisterSession(
   return async (input: { chain: DelegationToken[] }) => {
     const verified = await amap.verify({
       chain: input.chain,
-      nonceStore: new InMemoryNonceStore(),
       ...(keyResolver !== undefined ? { keyResolver } : {}),
     })
 

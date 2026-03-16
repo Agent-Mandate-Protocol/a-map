@@ -74,6 +74,16 @@ export async function beforeToolCall(
     )
   }
 
+  // Re-check expiry — the mandate may have expired since registration
+  const leafChainToken = session.chain[session.chain.length - 1]!
+  if (new Date(leafChainToken.expiresAt) < new Date()) {
+    throw new AmapError(
+      AmapErrorCode.TOKEN_EXPIRED,
+      `Session mandate for "${ctx.sessionId}" expired at ${leafChainToken.expiresAt}. ` +
+        'Call amap_register_session again with a fresh mandate.',
+    )
+  }
+
   // Check that the cached verified mandate covers this specific tool
   const leafToken = session.verified.chain[session.verified.chain.length - 1]!.token
   const requiredPermission = `tool:${ctx.toolName}`
