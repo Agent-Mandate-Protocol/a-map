@@ -43,7 +43,6 @@ describe('offline verification — no network calls', () => {
       chain: [token],
       expectedPermission: 'read_data',
       expectedDelegate: agentDid,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 
@@ -154,7 +153,6 @@ describe('offline verification — no network calls', () => {
       chain: [root, hop2, hop3, hop4, hop5],
       expectedPermission: 'read_data',
       expectedDelegate: e.did,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 

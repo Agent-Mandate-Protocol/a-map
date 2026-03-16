@@ -1,6 +1,6 @@
 export { AmapGuard } from './guard.js'
 export type { AmapGuardOptions, ToolRule, AuditEntry, McpClientLike } from './guard.js'
-export { amapProtect } from './protect.js'
-export type { AmapProtectOptions, AmapToolHandler } from './protect.js'
+export { amapProtect, toMcpErrorResponse, mcpToolHandler } from './protect.js'
+export type { AmapProtectOptions, AmapToolHandler, McpToolResult, McpTextContent } from './protect.js'
 export { amapIssueToolDefinition, handleAmapIssue } from './tools/amap-issue.js'
 export { amapVerifyToolDefinition, handleAmapVerify } from './tools/amap-verify.js'

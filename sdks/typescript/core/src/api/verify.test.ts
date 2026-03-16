@@ -37,7 +37,6 @@ describe('verify() — keyResolver + revocationChecker integration', () => {
         chain: [token],
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver,
         revocationChecker,
       }),
@@ -63,7 +62,6 @@ describe('verify() — keyResolver + revocationChecker integration', () => {
         chain: [token],
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver: emptyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.AGENT_UNKNOWN })

@@ -50,8 +50,6 @@ export interface VerifyOptions {
    * DID of the agent presenting the chain. If omitted, no delegate check is performed.
    */
   expectedDelegate?: string
-  /** Nonce store for replay prevention. Defaults to a new InMemoryNonceStore if omitted. */
-  nonceStore?: NonceStore
   /** Key resolver for DID → public key resolution. */
   keyResolver?: KeyResolver
   /** Revocation checker. Optional — omit to skip revocation checks. */

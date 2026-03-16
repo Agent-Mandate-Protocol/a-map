@@ -5,7 +5,6 @@ import { verifySignature } from '../crypto/sign.js'
 import { AmapError } from '../errors/amap-error.js'
 import { AmapErrorCode } from '../errors/codes.js'
 import { mergeConstraintChain } from '../types/constraints.js'
-import { InMemoryNonceStore } from '../types/nonce-store.js'
 import type { VerificationResult, VerifiedLink } from '../types/result.js'
 import type { VerifyOptions } from './types.js'
 import { assertConstraintsNotRelaxed } from './validate-constraints.js'
@@ -17,7 +16,6 @@ export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
     throw new AmapError(AmapErrorCode.BROKEN_CHAIN, 'Chain must contain at least one token')
   }
 
-  const nonceStore = opts.nonceStore ?? new InMemoryNonceStore()
   const now = new Date()
   const verifiedLinks: VerifiedLink[] = []
 
@@ -100,12 +98,6 @@ export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
       // Constraint non-relaxation
       const mergedParent = mergeConstraintChain(chain.slice(0, i).map(t => t.constraints))
       assertConstraintsNotRelaxed(mergedParent, token.constraints)
-    }
-
-    // Step 8: Nonce replay check (atomic)
-    const tokenTtlMs = new Date(token.expiresAt).getTime() - Date.now()
-    if (!(await nonceStore.checkAndStore(token.nonce, Math.max(tokenTtlMs, 0)))) {
-      throw new AmapError(AmapErrorCode.NONCE_REPLAYED, `Nonce already seen at hop ${i}`, i)
     }
 
     verifiedLinks.push({ hop: i, token, issuer: token.issuer, delegate: token.delegate })

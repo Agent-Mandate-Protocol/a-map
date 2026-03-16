@@ -1,6 +1,79 @@
 import { amap, AmapError, AmapErrorCode } from '@agentmandateprotocol/core'
 import type { VerificationResult, KeyResolver, NonceStore } from '@agentmandateprotocol/core'
 
+// ─── MCP response types ───────────────────────────────────────────────────────
+
+export interface McpTextContent {
+  type: 'text'
+  text: string
+}
+
+/** MCP tool call result — success or error */
+export interface McpToolResult {
+  isError: boolean
+  content: McpTextContent[]
+}
+
+/**
+ * Convert any thrown error to a structured MCP tool error response.
+ *
+ * MCP servers that catch errors rather than letting the framework handle them
+ * can use this to produce a spec-compliant `{ isError: true, content: [...] }`
+ * response. AmapErrors include the error code in the text for easy diagnosis.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   const result = await protectedHandler(input)
+ *   return { isError: false, content: [{ type: 'text', text: JSON.stringify(result) }] }
+ * } catch (err) {
+ *   return toMcpErrorResponse(err)
+ * }
+ * ```
+ */
+export function toMcpErrorResponse(err: unknown): McpToolResult {
+  if (err instanceof AmapError) {
+    return {
+      isError: true,
+      content: [{ type: 'text', text: `[${err.code}] ${err.message}` }],
+    }
+  }
+  const message = err instanceof Error ? err.message : String(err)
+  return {
+    isError: true,
+    content: [{ type: 'text', text: message }],
+  }
+}
+
+/**
+ * Wrap an amapProtect handler to return MCP tool results instead of throwing.
+ *
+ * Use this when you want explicit control over the MCP response format,
+ * or when the framework does not automatically convert thrown errors.
+ *
+ * @example
+ * ```ts
+ * const sendEmail = mcpToolHandler('send_email', handler, opts)
+ * // Returns { isError: false, content: [...] } or { isError: true, content: [...] }
+ * const result = await sendEmail(input)
+ * ```
+ */
+export function mcpToolHandler<TInput extends Record<string, unknown>, TOutput>(
+  toolName: string,
+  handler: AmapToolHandler<Omit<TInput, '_amap'>, TOutput>,
+  options: AmapProtectOptions = {},
+): (input: TInput) => Promise<McpToolResult> {
+  const protectedHandler = amapProtect(toolName, handler, options)
+  return async (input: TInput): Promise<McpToolResult> => {
+    try {
+      const result = await protectedHandler(input)
+      return { isError: false, content: [{ type: 'text', text: JSON.stringify(result) }] }
+    } catch (err) {
+      return toMcpErrorResponse(err)
+    }
+  }
+}
+
 export interface AmapProtectOptions {
   /** The permission required to call this tool. Defaults to `tool:{toolName}`. */
   requiredPermission?: string

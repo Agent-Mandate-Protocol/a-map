@@ -377,7 +377,6 @@ describe('amap.verify()', () => {
       chain,
       expectedPermission: 'read_email',
       expectedDelegate: agent.did,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 
@@ -420,7 +419,6 @@ describe('amap.verify()', () => {
       chain: [root, hop2, hop3],
       expectedPermission: 'read_email',
       expectedDelegate: c.did,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 
@@ -476,7 +474,6 @@ describe('amap.verify()', () => {
       chain: [root, hop2, hop3, hop4, hop5],
       expectedPermission: 'read_data',
       expectedDelegate: e.did,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 
@@ -512,7 +509,6 @@ describe('amap.verify()', () => {
       chain: [root, child],
       expectedPermission: 'read_email',
       expectedDelegate: b.did,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 
@@ -529,7 +525,6 @@ describe('amap.verify()', () => {
         chain: [tampered],
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.INVALID_SIGNATURE })
@@ -563,7 +558,6 @@ describe('amap.verify()', () => {
         chain: [root, tamperedChild],
         expectedPermission: 'read_email',
         expectedDelegate: b.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.BROKEN_CHAIN })
@@ -590,28 +584,26 @@ describe('amap.verify()', () => {
         chain: [token],
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.TOKEN_EXPIRED })
   })
 
-  it('throws NONCE_REPLAYED when the same chain is verified twice', async () => {
+  it('allows the same chain to be verified multiple times (mandates are reusable)', async () => {
     const { chain, agent, keyResolver } = await make1Hop()
-    const nonceStore = new InMemoryNonceStore()
     const opts = {
       chain,
       expectedPermission: 'read_email',
       expectedDelegate: agent.did,
-      nonceStore,
       keyResolver,
     }
 
-    await amap.verify(opts)
-
-    await expect(amap.verify(opts)).rejects.toMatchObject({
-      code: AmapErrorCode.NONCE_REPLAYED,
-    })
+    // Verifying the same mandate chain twice must succeed — replay protection
+    // is enforced at the request level (X-AMAP-Nonce in verifyRequest), not here.
+    const r1 = await amap.verify(opts)
+    const r2 = await amap.verify(opts)
+    expect(r1.valid).toBe(true)
+    expect(r2.valid).toBe(true)
   })
 
   it('throws PARAMETER_LOCK_VIOLATION when requestParams violate a lock', async () => {
@@ -634,7 +626,6 @@ describe('amap.verify()', () => {
         chain: [token],
         expectedPermission: 'send_email',
         expectedDelegate: agent.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver,
         requestParams: { to: 'hacker@evil.com' },
       }),
@@ -660,7 +651,6 @@ describe('amap.verify()', () => {
       chain: [token],
       expectedPermission: 'send_email',
       expectedDelegate: agent.did,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
       requestParams: { to: 'boss@company.com' },
     })
@@ -677,7 +667,6 @@ describe('amap.verify()', () => {
         chain,
         expectedPermission: 'read_email',
         expectedDelegate: agent.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver: emptyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.AGENT_UNKNOWN })
@@ -742,7 +731,6 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
 
     const result = await amap.verifyRequest({
       headers, method: 'GET', path: '/email/inbox',
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 
@@ -766,7 +754,6 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
     await expect(
       amap.verifyRequest({
         headers: staleHeaders, method: 'GET', path: '/email/inbox',
-        nonceStore: new InMemoryNonceStore(), keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.STALE_REQUEST })
   })
@@ -801,7 +788,7 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
       amap.verifyRequest({
         headers, method: 'POST', path: '/email/send',
         body: '{"subject":"TAMPERED"}',
-        nonceStore: new InMemoryNonceStore(), keyResolver,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.INVALID_REQUEST_SIGNATURE })
   })
@@ -819,7 +806,7 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
     await expect(
       amap.verifyRequest({
         headers: badHeaders, method: 'GET', path: '/email/inbox',
-        nonceStore: new InMemoryNonceStore(), keyResolver,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.INVALID_REQUEST_SIGNATURE })
   })
@@ -848,7 +835,7 @@ describe('amap.signRequest() + amap.verifyRequest()', () => {
       amap.verifyRequest({
         headers, method: 'POST', path: '/send',
         requestParams: { to: 'hacker@evil.com' },
-        nonceStore: new InMemoryNonceStore(), keyResolver,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PARAMETER_LOCK_VIOLATION })
   })
@@ -877,7 +864,6 @@ describe('core safety guarantees', () => {
         chain: [token],
         expectedPermission: 'send_email',
         expectedDelegate: agent.did,
-        nonceStore: new InMemoryNonceStore(),
         keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PERMISSION_INFLATION })
@@ -908,7 +894,7 @@ describe('core safety guarantees', () => {
       amap.verifyRequest({
         headers, method: 'POST', path: '/send',
         requestParams: { to: 'hacker@evil.com' },
-        nonceStore: new InMemoryNonceStore(), keyResolver,
+        keyResolver,
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.PARAMETER_LOCK_VIOLATION })
   })
@@ -945,7 +931,6 @@ describe('core safety guarantees', () => {
       chain: [root, hop2, hop3],
       expectedPermission: 'book_flight',
       expectedDelegate: c.did,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
 
@@ -1001,7 +986,6 @@ describe('allow/deny policy engine — verify() with requestedAction', () => {
         chain: [token],
         requestedAction: 'rm -rf /',
         keyResolver,
-        nonceStore: new InMemoryNonceStore(),
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.EXPLICIT_DENY })
   })
@@ -1027,7 +1011,6 @@ describe('allow/deny policy engine — verify() with requestedAction', () => {
       chain: [token],
       requestedAction: 'npm install express',
       keyResolver,
-      nonceStore: new InMemoryNonceStore(),
     })
 
     expect(result.valid).toBe(true)
@@ -1056,7 +1039,6 @@ describe('allow/deny policy engine — verify() with requestedAction', () => {
         chain: [token],
         requestedAction: 'rm -rf /',
         keyResolver,
-        nonceStore: new InMemoryNonceStore(),
       }),
     ).rejects.toMatchObject({ code: AmapErrorCode.EXPLICIT_DENY })
   })
@@ -1080,7 +1062,6 @@ describe('allow/deny policy engine — verify() with requestedAction', () => {
     const result = await amap.verify({
       chain: [token],
       keyResolver,
-      nonceStore: new InMemoryNonceStore(),
     })
 
     expect(result.appliedPolicy).toBeUndefined()

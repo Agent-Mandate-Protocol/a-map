@@ -37,7 +37,6 @@ describe('verify() performance', () => {
       chain,
       expectedPermission: 'read',
       expectedDelegate: dids[10]!,
-      nonceStore: new InMemoryNonceStore(),
       keyResolver,
     })
   }, { time: 500 })
