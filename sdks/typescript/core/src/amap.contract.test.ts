@@ -429,6 +429,64 @@ describe('amap.verify()', () => {
     expect(result.effectiveConstraints.maxSpend).toBe(500)
   })
 
+  it('returns valid: true for a 5-hop chain and preserves human-issued constraints', async () => {
+    const pk = makeParty('pk')
+    const a  = makeParty('a')
+    const b  = makeParty('b')
+    const c  = makeParty('c')
+    const d  = makeParty('d')
+    const e  = makeParty('e')
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [pk.did, pk.keys.publicKey],
+      [a.did,  a.keys.publicKey],
+      [b.did,  b.keys.publicKey],
+      [c.did,  c.keys.publicKey],
+      [d.did,  d.keys.publicKey],
+      [e.did,  e.keys.publicKey],
+    ]))
+
+    const root = await amap.issue({
+      principal: pk.did, delegate: a.did,
+      permissions: ['read_data'], constraints: { maxSpend: 100, maxCalls: 50 },
+      expiresIn: '1h', privateKey: pk.keys.privateKey,
+    })
+    const hop2 = await amap.delegate({
+      parentToken: root, parentChain: [root],
+      delegate: b.did, permissions: ['read_data'],
+      expiresIn: '50m', privateKey: a.keys.privateKey,
+    })
+    const hop3 = await amap.delegate({
+      parentToken: hop2, parentChain: [root, hop2],
+      delegate: c.did, permissions: ['read_data'],
+      expiresIn: '40m', privateKey: b.keys.privateKey,
+    })
+    const hop4 = await amap.delegate({
+      parentToken: hop3, parentChain: [root, hop2, hop3],
+      delegate: d.did, permissions: ['read_data'],
+      expiresIn: '30m', privateKey: c.keys.privateKey,
+    })
+    const hop5 = await amap.delegate({
+      parentToken: hop4, parentChain: [root, hop2, hop3, hop4],
+      delegate: e.did, permissions: ['read_data'],
+      expiresIn: '15m', privateKey: d.keys.privateKey,
+    })
+
+    const result = await amap.verify({
+      chain: [root, hop2, hop3, hop4, hop5],
+      expectedPermission: 'read_data',
+      expectedDelegate: e.did,
+      nonceStore: new InMemoryNonceStore(),
+      keyResolver,
+    })
+
+    expect(result.valid).toBe(true)
+    expect(result.chain).toHaveLength(5)
+    // Human's constraints survive all 5 hops unchanged
+    expect(result.effectiveConstraints.maxSpend).toBe(100)
+    expect(result.effectiveConstraints.maxCalls).toBe(50)
+  })
+
   it('returns effective constraints as most restrictive across the chain', async () => {
     const pk = makeParty('pk')
     const a = makeParty('a')

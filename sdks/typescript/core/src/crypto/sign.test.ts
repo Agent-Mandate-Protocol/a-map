@@ -36,4 +36,19 @@ describe('signCanonical + verifySignature', () => {
     const sig = signCanonical(privateKey, '{}')
     expect(sig).toMatch(/^[A-Za-z0-9_-]+$/)
   })
+
+  it('{ b: 2, a: 1 } and { a: 1, b: 2 } produce the same signature (JCS key-order invariance)', () => {
+    const { publicKey, privateKey } = keygen()
+
+    // Sign each object independently — JCS canonicalises both to '{"a":1,"b":2}'
+    const sigBA = signCanonical(privateKey, canonicalize({ b: 2, a: 1 }))
+    const sigAB = signCanonical(privateKey, canonicalize({ a: 1, b: 2 }))
+
+    // Same canonical bytes → same signature
+    expect(sigBA).toBe(sigAB)
+
+    // Either signature verifies against either key order
+    expect(verifySignature(publicKey, canonicalize({ b: 2, a: 1 }), sigAB)).toBe(true)
+    expect(verifySignature(publicKey, canonicalize({ a: 1, b: 2 }), sigBA)).toBe(true)
+  })
 })
