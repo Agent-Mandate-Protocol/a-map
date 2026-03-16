@@ -1,0 +1,22 @@
+{
+  "name": "@agentmandateprotocol/cli",
+  "version": "0.0.1",
+  "description": "A-MAP CLI — issue and verify agent mandates",
+  "private": false,
+  "type": "module",
+  "bin": { "amap": "./dist/index.js" },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentmandateprotocol/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "tsx": "*"
+  },
+  "engines": { "node": ">=18.0.0" }
+}

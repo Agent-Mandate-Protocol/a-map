@@ -1,17 +1,19 @@
 {
   "name": "amap-registry",
   "version": "0.0.1",
-  "description": "A-MAP registry Cloudflare Worker",
+  "description": "A-MAP registry Cloudflare Worker — registry.agentmandateprotocol.dev",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
   "scripts": {
-    "build": "tsc --project tsconfig.json",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
-    "clean": "rm -rf dist"
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@agentmandateprotocol/core": "workspace:*",
+    "hono": "^4.0.0"
   },
   "devDependencies": {
     "typescript": "*",

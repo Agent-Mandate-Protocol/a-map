@@ -35,3 +35,45 @@ export class LocalKeyResolver implements KeyResolver {
     return this.keys.get(did) ?? null
   }
 }
+
+/**
+ * Key resolver and revocation checker backed by a hosted A-MAP registry.
+ *
+ * Resolves DIDs and checks revocations via HTTP. Use in production deployments
+ * where agents register their public keys with the registry.
+ *
+ * For airgapped or test deployments, use LocalKeyResolver instead.
+ *
+ * @example
+ * ```ts
+ * const resolver = new HostedRegistryClient('https://registry.agentmandateprotocol.dev')
+ * const result = await amap.verify(chain, { keyResolver: resolver, revocationChecker: resolver })
+ * ```
+ */
+export class HostedRegistryClient implements KeyResolver, RevocationChecker {
+  constructor(
+    private readonly registryUrl: string = 'https://registry.agentmandateprotocol.dev',
+  ) {}
+
+  async resolve(did: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${this.registryUrl}/resolve/${encodeURIComponent(did)}`)
+      if (!res.ok) return null
+      const body = await res.json() as { publicKey: string }
+      return body.publicKey
+    } catch {
+      return null
+    }
+  }
+
+  async isRevoked(did: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.registryUrl}/revoked/${encodeURIComponent(did)}`)
+      if (!res.ok) return false
+      const body = await res.json() as { revoked: boolean }
+      return body.revoked
+    } catch {
+      return false
+    }
+  }
+}

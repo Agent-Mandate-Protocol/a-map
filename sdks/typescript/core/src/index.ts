@@ -43,7 +43,7 @@ export type { VerificationResult, VerifiedLink } from './types/result.js'
 export type { NonceStore } from './types/nonce-store.js'
 export { InMemoryNonceStore } from './types/nonce-store.js'
 export type { KeyResolver, RevocationChecker } from './types/registry.js'
-export { LocalKeyResolver } from './types/registry.js'
+export { LocalKeyResolver, HostedRegistryClient } from './types/registry.js'
 
 // Errors (T3)
 export { AmapError } from './errors/amap-error.js'
