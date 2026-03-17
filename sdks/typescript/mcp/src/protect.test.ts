@@ -134,6 +134,48 @@ describe('amapProtect()', () => {
       .resolves.toEqual({ sent: true })
   })
 
+  it('rejects a replayed nonce on a second call with the same headers', async () => {
+    const issuerKeys = makeKeys()
+    const agentKeys = makeKeys()
+    const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
+    const agentDid = amap.computeDID({ type: 'agent', name: 'agent', version: '1.0', publicKey: agentKeys.publicKey })
+
+    const token = await amap.issue({
+      principal: issuerDid,
+      delegate: agentDid,
+      permissions: ['tool:test_tool'],
+      expiresIn: '1h',
+      privateKey: issuerKeys.privateKey,
+    })
+
+    const headers = amap.signRequest({
+      mandateChain: [token],
+      method: 'POST',
+      path: '/mcp/test_tool',
+      privateKey: agentKeys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [issuerDid, issuerKeys.publicKey],
+      [agentDid, agentKeys.publicKey],
+    ]))
+
+    // No explicit nonceStore — handler must create and reuse one internally
+    const handler = amapProtect(
+      'test_tool',
+      async () => ({ ok: true }),
+      { keyResolver },
+    )
+
+    // First call — succeeds
+    await expect(handler({ _amap: { headers, method: 'POST', path: '/mcp/test_tool' } }))
+      .resolves.toEqual({ ok: true })
+
+    // Second call with the same headers (same nonce) — must be rejected as replay
+    await expect(handler({ _amap: { headers, method: 'POST', path: '/mcp/test_tool' } }))
+      .rejects.toMatchObject({ code: 'NONCE_REPLAYED' })
+  })
+
   it('rejects when agent lacks the required permission', async () => {
     const issuerKeys = makeKeys()
     const agentKeys = makeKeys()

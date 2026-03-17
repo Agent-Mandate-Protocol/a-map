@@ -1,4 +1,4 @@
-import { amap, AmapError, AmapErrorCode } from '@agentmandateprotocol/core'
+import { amap, AmapError, AmapErrorCode, InMemoryNonceStore } from '@agentmandateprotocol/core'
 import type { VerificationResult, KeyResolver, NonceStore } from '@agentmandateprotocol/core'
 
 // ─── MCP response types ───────────────────────────────────────────────────────
@@ -115,6 +115,11 @@ export function amapProtect<TInput extends Record<string, unknown>, TOutput>(
   handler: AmapToolHandler<Omit<TInput, '_amap'>, TOutput>,
   options: AmapProtectOptions = {},
 ): (input: TInput) => Promise<TOutput> {
+  // Create the nonce store once per protected handler, not per call.
+  // A per-call store would start empty every time, making replay prevention ineffective.
+  // For multi-instance deployments, pass a shared nonceStore in options (e.g. Redis, CF KV).
+  const nonceStore: NonceStore = options.nonceStore ?? new InMemoryNonceStore()
+
   return async (input: TInput) => {
     const envelope = input['_amap'] as AmapEnvelope | undefined
     if (!envelope?.headers) {
@@ -135,7 +140,7 @@ export function amapProtect<TInput extends Record<string, unknown>, TOutput>(
       requestParams: cleanArgs,
       ...(options.requestedAction !== undefined ? { requestedAction: options.requestedAction } : {}),
       ...(options.keyResolver !== undefined ? { keyResolver: options.keyResolver } : {}),
-      ...(options.nonceStore !== undefined ? { nonceStore: options.nonceStore } : {}),
+      nonceStore,
     })
 
     return handler(cleanArgs as Omit<TInput, '_amap'>, mandate)
