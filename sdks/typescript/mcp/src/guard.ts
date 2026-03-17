@@ -1,4 +1,4 @@
-import { amap, AmapError, AmapErrorCode, InMemoryNonceStore } from '@agentmandateprotocol/core'
+import { amap, AmapError, AmapErrorCode } from '@agentmandateprotocol/core'
 import type { DelegationToken, VerificationResult, KeyResolver } from '@agentmandateprotocol/core'
 
 /** Rule for a specific tool name. Use '*' as the key for a catch-all. */
@@ -10,14 +10,19 @@ export interface ToolRule {
 }
 
 export interface AuditEntry {
-  event: 'TOOL_ALLOWED' | 'TOOL_BLOCKED'
+  /**
+   * - `TOOL_ALLOWED`   — permission check passed; call proceeds.
+   * - `TOOL_BLOCKED`   — permission check failed in `enforce` mode; call is thrown before reaching the server.
+   * - `TOOL_VIOLATION` — permission check failed in `audit`/`warn` mode; call proceeds despite the failure.
+   */
+  event: 'TOOL_ALLOWED' | 'TOOL_BLOCKED' | 'TOOL_VIOLATION'
   tool: string
   timestamp: string
   /** tokenId of the root token */
   mandateId: string
   /** DID of the human who issued the root mandate */
   principal: string
-  /** Present when event is TOOL_BLOCKED */
+  /** Present when event is TOOL_BLOCKED or TOOL_VIOLATION */
   reason?: string
 }
 
@@ -52,13 +57,22 @@ export interface McpClientLike {
  * Client-side A-MAP guard. Wraps an MCP client and enforces mandate permissions
  * before any call reaches the server.
  *
- * The MCP server is completely unaware — it either receives the call or doesn't.
+ * ⚠️  CLIENT-SIDE ONLY — NOT a server-side security barrier.
+ * `AmapGuard` verifies the mandate chain and checks permissions on the calling side,
+ * preventing out-of-scope tool calls from ever being sent. It does NOT verify request
+ * signatures, timestamps, or nonces. A malicious or compromised process that bypasses
+ * this guard can still call the server directly.
+ *
+ * For server-side enforcement (the only cryptographically sound boundary), use
+ * `amapProtect()` from `@agentmandateprotocol/mcp` on the tool handler.
+ * `AmapGuard` and `amapProtect` are complementary: the guard gives the agent
+ * early feedback; `amapProtect` is the authoritative check.
  *
  * Usage:
  *   const guarded = new AmapGuard(mcpClient, { mandate, rules, mode: 'enforce' })
  *   await guarded.callTool('filesystem/deleteFile', { path })
  *   // → throws PERMISSION_INFLATION if mandate lacks 'filesystem/deleteFile'
- *   // → MCP server never receives the call
+ *   // → MCP server never receives the call (client-side short-circuit only)
  */
 export class AmapGuard {
   private verifiedMandate: VerificationResult | null = null
@@ -74,7 +88,6 @@ export class AmapGuard {
     if (this.verifyPromise === null) {
       this.verifyPromise = amap.verify({
         chain: this.options.mandate,
-        nonceStore: new InMemoryNonceStore(),
         ...(this.options.keyResolver !== undefined ? { keyResolver: this.options.keyResolver } : {}),
       })
     }
@@ -96,8 +109,17 @@ export class AmapGuard {
     const missing = rule.requires.filter(p => !leafToken.permissions.includes(p))
     const allowed = missing.length === 0
 
+    let event: AuditEntry['event']
+    if (allowed) {
+      event = 'TOOL_ALLOWED'
+    } else if (mode === 'enforce') {
+      event = 'TOOL_BLOCKED'
+    } else {
+      event = 'TOOL_VIOLATION'
+    }
+
     const entry: AuditEntry = {
-      event: allowed ? 'TOOL_ALLOWED' : 'TOOL_BLOCKED',
+      event,
       tool: toolName,
       timestamp: new Date().toISOString(),
       mandateId: mandate.chain[0]!.token.tokenId,

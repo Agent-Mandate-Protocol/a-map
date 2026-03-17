@@ -122,7 +122,7 @@ describe('AmapGuard', () => {
       await guard.callTool('filesystem/deleteFile', { path: './readme.md' })
       expect(client.callTool).toHaveBeenCalledOnce()
       expect(auditLog).toHaveLength(1)
-      expect(auditLog[0]!.event).toBe('TOOL_BLOCKED')
+      expect(auditLog[0]!.event).toBe('TOOL_VIOLATION')
       expect(auditLog[0]!.reason).toContain('filesystem/deleteFile')
     })
 
@@ -180,8 +180,45 @@ describe('AmapGuard', () => {
       })
 
       await guard.callTool('write/tool', {})
-      expect(auditLog[0]!.event).toBe('TOOL_BLOCKED')
+      expect(auditLog[0]!.event).toBe('TOOL_VIOLATION')
       expect(auditLog[0]!.reason).toBeDefined()
+    })
+  })
+
+  describe('audit event semantics', () => {
+    it('emits TOOL_BLOCKED (not TOOL_VIOLATION) when enforce mode blocks a call', async () => {
+      const { token, keyResolver } = await makeMandate(['read:only'])
+      const client = makeMockClient()
+      const auditLog: AuditEntry[] = []
+
+      const guard = new AmapGuard(client, {
+        mandate: [token],
+        keyResolver,
+        mode: 'enforce',
+        rules: { 'write/tool': { requires: ['write:access'] } },
+        onAudit: entry => auditLog.push(entry),
+      })
+
+      await expect(guard.callTool('write/tool', {})).rejects.toThrow()
+      expect(auditLog[0]!.event).toBe('TOOL_BLOCKED')
+    })
+
+    it('emits TOOL_VIOLATION (not TOOL_BLOCKED) when audit mode lets a violating call through', async () => {
+      const { token, keyResolver } = await makeMandate(['read:only'])
+      const client = makeMockClient()
+      const auditLog: AuditEntry[] = []
+
+      const guard = new AmapGuard(client, {
+        mandate: [token],
+        keyResolver,
+        mode: 'audit',
+        rules: { 'write/tool': { requires: ['write:access'] } },
+        onAudit: entry => auditLog.push(entry),
+      })
+
+      await guard.callTool('write/tool', {})
+      expect(client.callTool).toHaveBeenCalledOnce()
+      expect(auditLog[0]!.event).toBe('TOOL_VIOLATION')
     })
   })
 
