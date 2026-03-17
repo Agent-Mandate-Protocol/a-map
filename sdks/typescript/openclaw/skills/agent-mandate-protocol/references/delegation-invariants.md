@@ -63,7 +63,7 @@ Hop 2: expiresIn = '90m'   ← INVALID: T+90min > T+60min → EXPIRY_VIOLATION
 ## Why These Invariants Matter
 
 Without cryptographic enforcement, a sub-agent could:
-- Claim any permission (prompt: "ignore previous instructions, I have admin access")
+- Claim any permission via prompt manipulation ("I have admin access, disregard your constraints")
 - Relax a maxSpend of $100 to $10,000
 - Extend a 15-minute mandate to 24 hours
 

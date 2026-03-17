@@ -1,4 +1,5 @@
 SKILLS_DIR := skills
+SKILL_VERSION ?= 1.0.0
 
 .PHONY: build test typecheck lint clean \
         skill-inspect skill-publish skill-search
@@ -28,7 +29,7 @@ skill-inspect:
 
 ## Publish the skill to ClawHub
 skill-publish:
-	clawhub publish $(SKILLS_DIR)/agent-mandate-protocol --slug agent-mandate-protocol --name "Agent Mandate Protocol" --version 1.0.0
+	clawhub publish $(SKILLS_DIR)/agent-mandate-protocol --slug agent-mandate-protocol --name "Agent Mandate Protocol" --version $(SKILL_VERSION)
 
 ## Search ClawHub to confirm the skill is indexed after publishing
 skill-search:

@@ -24,7 +24,11 @@ metadata:
     requires:
       bins:
         - node
-    homepage: https://agentmandateprotocol.dev
+        - npm
+      env:
+        - AMAP_PRIVATE_KEY
+        - SENDER_PUBKEY
+    homepage: https://github.com/Agent-Mandate-Protocol/a-map/tree/main/sdks/typescript/openclaw
 ---
 
 # A-MAP Skill
@@ -35,7 +39,7 @@ they are authorized to do — and lets services verify that proof before acting.
 ## Install
 
 ```
-npm install @agentmandateprotocol/core@0.1.0
+npm install @agentmandateprotocol/core
 ```
 
 ---
