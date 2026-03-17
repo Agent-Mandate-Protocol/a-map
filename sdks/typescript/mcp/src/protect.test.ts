@@ -59,6 +59,81 @@ describe('amapProtect()', () => {
     expect(result.args).toEqual({ someArg: 'value' }) // _amap stripped
   })
 
+  it('enforces parameterLocks — rejects when locked param does not match', async () => {
+    const issuerKeys = makeKeys()
+    const agentKeys = makeKeys()
+    const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
+    const agentDid = amap.computeDID({ type: 'agent', name: 'agent', version: '1.0', publicKey: agentKeys.publicKey })
+
+    const token = await amap.issue({
+      principal: issuerDid,
+      delegate: agentDid,
+      permissions: ['tool:send_email'],
+      constraints: { parameterLocks: { to: 'boss@company.com' } },
+      expiresIn: '1h',
+      privateKey: issuerKeys.privateKey,
+    })
+
+    const headers = amap.signRequest({
+      mandateChain: [token],
+      method: 'POST',
+      path: '/mcp/send_email',
+      privateKey: agentKeys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [issuerDid, issuerKeys.publicKey],
+      [agentDid, agentKeys.publicKey],
+    ]))
+
+    const handler = amapProtect(
+      'send_email',
+      async () => ({ ok: true }),
+      { keyResolver, nonceStore: new InMemoryNonceStore() },
+    )
+
+    // Locked to boss@company.com — hacker@evil.com must be rejected
+    await expect(handler({ to: 'hacker@evil.com', _amap: { headers, method: 'POST', path: '/mcp/send_email' } }))
+      .rejects.toMatchObject({ code: 'PARAMETER_LOCK_VIOLATION' })
+  })
+
+  it('allows call when locked param matches', async () => {
+    const issuerKeys = makeKeys()
+    const agentKeys = makeKeys()
+    const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
+    const agentDid = amap.computeDID({ type: 'agent', name: 'agent', version: '1.0', publicKey: agentKeys.publicKey })
+
+    const token = await amap.issue({
+      principal: issuerDid,
+      delegate: agentDid,
+      permissions: ['tool:send_email'],
+      constraints: { parameterLocks: { to: 'boss@company.com' } },
+      expiresIn: '1h',
+      privateKey: issuerKeys.privateKey,
+    })
+
+    const headers = amap.signRequest({
+      mandateChain: [token],
+      method: 'POST',
+      path: '/mcp/send_email',
+      privateKey: agentKeys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [issuerDid, issuerKeys.publicKey],
+      [agentDid, agentKeys.publicKey],
+    ]))
+
+    const handler = amapProtect(
+      'send_email',
+      async (args) => ({ sent: true }),
+      { keyResolver, nonceStore: new InMemoryNonceStore() },
+    )
+
+    await expect(handler({ to: 'boss@company.com', _amap: { headers, method: 'POST', path: '/mcp/send_email' } }))
+      .resolves.toEqual({ sent: true })
+  })
+
   it('rejects when agent lacks the required permission', async () => {
     const issuerKeys = makeKeys()
     const agentKeys = makeKeys()

@@ -124,18 +124,19 @@ export function amapProtect<TInput extends Record<string, unknown>, TOutput>(
       )
     }
 
+    const { _amap: _, ...cleanArgs } = input
+
     const mandate = await amap.verifyRequest({
       headers: envelope.headers,
       method: envelope.method ?? 'POST',
       path: envelope.path ?? `/mcp/${toolName}`,
       ...(envelope.body !== undefined ? { body: envelope.body } : {}),
       expectedPermission: options.requiredPermission ?? `tool:${toolName}`,
+      requestParams: cleanArgs,
       ...(options.requestedAction !== undefined ? { requestedAction: options.requestedAction } : {}),
       ...(options.keyResolver !== undefined ? { keyResolver: options.keyResolver } : {}),
       ...(options.nonceStore !== undefined ? { nonceStore: options.nonceStore } : {}),
     })
-
-    const { _amap: _, ...cleanArgs } = input
 
     return handler(cleanArgs as Omit<TInput, '_amap'>, mandate)
   }
