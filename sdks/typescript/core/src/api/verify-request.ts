@@ -67,8 +67,12 @@ export async function verifyRequest(opts: VerifyRequestOptions): Promise<Verific
   if (!nonce) {
     throw new AmapError(AmapErrorCode.NONCE_REPLAYED, 'Missing X-AMAP-Nonce header')
   }
-  const leafToken = chain[chain.length - 1]!
-  const requestTtlMs = Math.max(new Date(leafToken.expiresAt).getTime() - Date.now(), 0)
+  // Fixed nonce TTL: 2× the timestamp freshness window (10 minutes).
+  // The timestamp check already rejects any request older than ±5 minutes, so a nonce
+  // cannot be replayed after that window regardless. Using the token's remaining lifetime
+  // (which can be hours or days) would cause the nonce store to accumulate entries far
+  // longer than necessary, wasting memory and slowing eviction.
+  const requestTtlMs = 2 * FIVE_MINUTES_MS
   if (!(await nonceStore.checkAndStore(nonce, requestTtlMs))) {
     throw new AmapError(
       AmapErrorCode.NONCE_REPLAYED,

@@ -112,6 +112,43 @@ describe('api/verify-request.ts', () => {
     })).rejects.toThrow(expect.objectContaining({ code: 'NONCE_REPLAYED' }))
   })
 
+  it('passes a fixed 10-minute TTL to the nonce store regardless of token lifetime', async () => {
+    const capturedTtls: number[] = []
+    const capturingNonceStore = {
+      async checkAndStore(nonce: string, ttlMs: number): Promise<boolean> {
+        capturedTtls.push(ttlMs)
+        return true
+      },
+    }
+
+    // Issue a token with a very long lifetime (24h)
+    const mandate = await amap.issue({
+      principal: aliceDid,
+      delegate: agentDid,
+      permissions: ['read'],
+      expiresIn: '24h',
+      privateKey: aliceKeys.privateKey,
+    })
+    const headers = amap.signRequest({
+      mandateChain: [mandate],
+      method: 'GET',
+      path: '/test',
+      privateKey: agentKeys.privateKey,
+    })
+
+    await verifyRequest({
+      headers,
+      method: 'GET',
+      path: '/test',
+      keyResolver,
+      nonceStore: capturingNonceStore,
+    })
+
+    expect(capturedTtls).toHaveLength(1)
+    // Must be exactly 2 × 5 minutes = 600_000 ms, not the ~86_400_000 ms token lifetime
+    expect(capturedTtls[0]).toBe(10 * 60 * 1000)
+  })
+
   it('throws INVALID_REQUEST_SIGNATURE if method or path mismatch', async () => {
     const mandate = await amap.issue({
       principal: aliceDid,

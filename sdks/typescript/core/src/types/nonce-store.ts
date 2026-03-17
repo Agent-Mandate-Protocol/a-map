@@ -23,23 +23,30 @@ export interface NonceStore {
  * In-memory NonceStore. Safe for single-process use (tests, CLI tools,
  * single-instance services). NOT suitable for production multi-instance deployments.
  *
- * Expired nonces are evicted lazily on each checkAndStore() call.
+ * Uses a FIFO insertion queue alongside the lookup map. Because verifyRequest()
+ * passes a fixed TTL for all nonces, entries expire in the same order they were
+ * inserted. On each checkAndStore() call, expired entries are drained from the
+ * front of the queue and deleted from the map — O(1) amortized per call, with
+ * memory bounded to the live window rather than growing between eviction batches.
  */
 export class InMemoryNonceStore implements NonceStore {
-  private readonly seen = new Map<string, number>() // nonce → expiry epoch ms
+  private readonly seen = new Map<string, number>()          // nonce → expiry ms
+  private readonly queue: Array<{ nonce: string; expiry: number }> = []
 
   async checkAndStore(nonce: string, ttlMs: number): Promise<boolean> {
-    this.evict()
-    if (this.seen.has(nonce)) return false
-    this.seen.set(nonce, Date.now() + ttlMs)
-    return true
-  }
-
-  /** Remove expired nonces to prevent unbounded memory growth. */
-  private evict(): void {
     const now = Date.now()
-    for (const [nonce, expiry] of this.seen) {
-      if (expiry < now) this.seen.delete(nonce)
+
+    // Drain expired entries from the front of the queue — O(1) amortized because
+    // each entry is enqueued once and dequeued once over its lifetime.
+    while (this.queue.length > 0 && this.queue[0]!.expiry <= now) {
+      this.seen.delete(this.queue.shift()!.nonce)
     }
+
+    if (this.seen.has(nonce)) return false
+
+    const expiry = now + ttlMs
+    this.seen.set(nonce, expiry)
+    this.queue.push({ nonce, expiry })
+    return true
   }
 }
