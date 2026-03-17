@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { amap, LocalKeyResolver } from '@agentmandateprotocol/core'
 import {
   register,
   createAmapPlugin,
@@ -48,6 +49,46 @@ describe('createAmapPlugin()', () => {
     const input = { principal: 'alice', agentDid: 'did:...', permissions: [], expiresIn: '1h', issuerPrivateKey: 'x' }
     const result = await plugin.beforeToolCall('amap_issue', input, { sessionId: 'session-1' })
     expect(result).toBe(input)
+  })
+
+  it('rejects a replayed nonce on per-call _amap path with no explicit nonceStore', async () => {
+    const issuerKeys = amap.keygen()
+    const agentKeys = amap.keygen()
+    const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
+    const agentDid = amap.computeDID({ type: 'agent', name: 'agent', version: '1.0', publicKey: agentKeys.publicKey })
+
+    const token = await amap.issue({
+      principal: issuerDid,
+      delegate: agentDid,
+      permissions: ['tool:read_file'],
+      expiresIn: '1h',
+      privateKey: issuerKeys.privateKey,
+    })
+
+    const headers = amap.signRequest({
+      mandateChain: [token],
+      method: 'POST',
+      path: '/tool/read_file',
+      privateKey: agentKeys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [issuerDid, issuerKeys.publicKey],
+      [agentDid, agentKeys.publicKey],
+    ]))
+
+    // No nonceStore in opts — plugin must create and reuse one internally
+    const plugin = createAmapPlugin({ keyResolver })
+
+    // First call — succeeds
+    await expect(
+      plugin.beforeToolCall('read_file', { _amap: { headers, method: 'POST', path: '/tool/read_file' } }, { sessionId: 'session-1' }),
+    ).resolves.toBeDefined()
+
+    // Second call with the same headers (same nonce) — must be rejected as replay
+    await expect(
+      plugin.beforeToolCall('read_file', { _amap: { headers, method: 'POST', path: '/tool/read_file' } }, { sessionId: 'session-1' }),
+    ).rejects.toMatchObject({ code: 'NONCE_REPLAYED' })
   })
 })
 

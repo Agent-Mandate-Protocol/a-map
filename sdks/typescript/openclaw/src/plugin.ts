@@ -1,3 +1,4 @@
+import { InMemoryNonceStore } from '@agentmandateprotocol/core'
 import { SessionMandateStore } from './session-store.js'
 import { amapRegisterSessionToolDefinition, handleAmapRegisterSession } from './tools/amap-register-session.js'
 import { amapIssueToolDefinition, handleAmapIssue } from './tools/amap-issue.js'
@@ -41,7 +42,11 @@ const AMAP_TOOL_NAMES = new Set([amapIssueToolDefinition.name, amapRegisterSessi
 export default function register(api: PluginApi): void {
   const sessionStore = new SessionMandateStore()
   const config: AmapPluginOptions = api.config?.amap ?? {}
-  const { keyResolver, nonceStore, revocationChecker } = config
+  const { keyResolver, revocationChecker } = config
+  // Create the nonce store once per plugin instance, not per call.
+  // A per-call store starts empty every time, making replay prevention ineffective.
+  // For multi-instance deployments, pass a shared nonceStore in config (e.g. Redis, CF KV).
+  const nonceStore = config.nonceStore ?? new InMemoryNonceStore()
 
   // amap_issue — humans call this to sign a mandate for an agent
   api.registerTool({
@@ -90,8 +95,8 @@ export default function register(api: PluginApi): void {
         { sessionId: ctx.sessionKey, toolName: ctx.toolName },
         {
           sessionStore,
+          nonceStore,
           ...(keyResolver !== undefined ? { keyResolver } : {}),
-          ...(nonceStore !== undefined ? { nonceStore } : {}),
           ...(revocationChecker !== undefined ? { revocationChecker } : {}),
         },
       )
@@ -114,6 +119,8 @@ export default function register(api: PluginApi): void {
  */
 export function createAmapPlugin(opts: AmapPluginOptions = {}) {
   const sessionStore = new SessionMandateStore()
+  // Create the nonce store once per plugin instance, not per call.
+  const nonceStore = opts.nonceStore ?? new InMemoryNonceStore()
 
   return {
     name: '@agentmandateprotocol/openclaw',
@@ -147,8 +154,8 @@ export function createAmapPlugin(opts: AmapPluginOptions = {}) {
 
       return beforeToolCall(input, { sessionId: ctx.sessionId, toolName: name }, {
         sessionStore,
+        nonceStore,
         ...(opts.keyResolver !== undefined ? { keyResolver: opts.keyResolver } : {}),
-        ...(opts.nonceStore !== undefined ? { nonceStore: opts.nonceStore } : {}),
         ...(opts.revocationChecker !== undefined ? { revocationChecker: opts.revocationChecker } : {}),
       })
     },
