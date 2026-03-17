@@ -49,6 +49,17 @@ export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
           i,
         )
       }
+
+      // Issuer-delegate continuity: the token's issuer must be the previous token's delegate.
+      // Without this check an attacker can append their own DID-signed token to any valid chain,
+      // satisfying the hash link and their own signature while never having been delegated to.
+      if (token.issuer !== chain[i - 1]!.delegate) {
+        throw new AmapError(
+          AmapErrorCode.BROKEN_CHAIN,
+          `Hop ${i} issuer "${token.issuer}" does not match hop ${i - 1} delegate "${chain[i - 1]!.delegate}"`,
+          i,
+        )
+      }
     }
 
     // Step 4: Resolve issuer public key
@@ -123,8 +134,13 @@ export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
 
   // Steps 11–12: parameterLocks check
   if (opts.requestParams !== undefined) {
+    // Build the effective lock map with parent-first precedence: iterate in reverse so that
+    // earlier (parent) tokens overwrite later (child) tokens. This ensures a root lock on
+    // e.g. { to: "boss@company.com" } can never be shadowed by a child token that redeclares
+    // the same key — parents always win on conflicts.
     const allLocks: Record<string, unknown> = {}
-    for (const token of chain) {
+    for (let j = chain.length - 1; j >= 0; j--) {
+      const token = chain[j]!
       if (token.constraints.parameterLocks) {
         Object.assign(allLocks, token.constraints.parameterLocks)
       }
