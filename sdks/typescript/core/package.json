@@ -1,6 +1,6 @@
 {
   "name": "@agentmandateprotocol/core",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Cryptographic delegation chains for AI agent authorization — sign, verify, delegate",
   "license": "MIT",
   "author": "Agent Mandate Protocol",
