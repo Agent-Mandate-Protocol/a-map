@@ -1,3 +1,25 @@
+import { createHash } from 'node:crypto'
+
+/**
+ * Verify that a public key matches the fingerprint embedded in a DID.
+ *
+ * DID format: did:amap:{...segments...}:{fingerprint}
+ * Fingerprint = first 8 chars of base64url(SHA-256(publicKey bytes))
+ *
+ * Returns true only if the computed fingerprint matches the DID's last segment.
+ * A false result means the registry returned a key that does not correspond to
+ * this DID — either a compromised registry or a MITM substitution.
+ */
+function didFingerprintMatches(did: string, publicKeyBase64url: string): boolean {
+  const expectedFingerprint = did.split(':').pop()
+  if (!expectedFingerprint) return false
+  const actualFingerprint = createHash('sha256')
+    .update(Buffer.from(publicKeyBase64url, 'base64url'))
+    .digest('base64url')
+    .slice(0, 8)
+  return actualFingerprint === expectedFingerprint
+}
+
 /**
  * Interface for resolving agent DIDs to public keys.
  * Abstracted so the offline (LocalKeyResolver) and hosted (HostedRegistryClient)
@@ -60,6 +82,10 @@ export class HostedRegistryClient implements KeyResolver, RevocationChecker {
       const res = await fetch(`${this.registryUrl}/resolve/${encodeURIComponent(did)}`)
       if (!res.ok) return null
       const body = await res.json() as { publicKey: string }
+      // Self-certifying check: the returned public key must produce a fingerprint
+      // that matches the one embedded in the DID. A compromised or MITM'd registry
+      // cannot substitute a different key without failing this check.
+      if (!didFingerprintMatches(did, body.publicKey)) return null
       return body.publicKey
     } catch {
       return null
