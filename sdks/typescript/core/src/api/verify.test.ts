@@ -168,6 +168,61 @@ describe('verify() — Critical A: issuer-delegate continuity', () => {
   })
 })
 
+describe('verify() — Logic A: deep equality for parameterLocks values', () => {
+  function makeParty(name: string) {
+    const keys = amap.keygen()
+    const did = amap.computeDID({ type: 'agent', name, version: '1.0', publicKey: keys.publicKey })
+    return { keys, did }
+  }
+
+  it('accepts requestParams when lock value is a structurally identical object', async () => {
+    const human = makeParty('human')
+    const agent = makeParty('agent')
+
+    const token = await amap.issue({
+      principal: human.did,
+      delegate: agent.did,
+      permissions: ['query'],
+      constraints: { parameterLocks: { filter: { id: 123 } } },
+      expiresIn: '1h',
+      privateKey: human.keys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([[human.did, human.keys.publicKey]]))
+
+    const result = await amap.verify({
+      chain: [token],
+      requestParams: { filter: { id: 123 } },  // structurally equal but different object ref
+      keyResolver,
+    })
+    expect(result.valid).toBe(true)
+  })
+
+  it('rejects requestParams when object lock value differs', async () => {
+    const human = makeParty('human')
+    const agent = makeParty('agent')
+
+    const token = await amap.issue({
+      principal: human.did,
+      delegate: agent.did,
+      permissions: ['query'],
+      constraints: { parameterLocks: { filter: { id: 123 } } },
+      expiresIn: '1h',
+      privateKey: human.keys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([[human.did, human.keys.publicKey]]))
+
+    await expect(
+      amap.verify({
+        chain: [token],
+        requestParams: { filter: { id: 999 } },
+        keyResolver,
+      }),
+    ).rejects.toMatchObject({ code: AmapErrorCode.PARAMETER_LOCK_VIOLATION })
+  })
+})
+
 describe('verify() — Critical B: parameterLocks parent-first precedence', () => {
   function makeParty(name: string) {
     const keys = amap.keygen()

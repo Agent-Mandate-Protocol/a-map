@@ -1,3 +1,4 @@
+import { canonicalize } from '../crypto/canonicalize.js'
 import { AmapError } from '../errors/amap-error.js'
 import { AmapErrorCode } from '../errors/codes.js'
 import type { Constraints } from '../types/constraints.js'
@@ -125,7 +126,7 @@ export function assertConstraintsNotRelaxed(
     for (const [key, candidateValue] of Object.entries(candidate.parameterLocks)) {
       if (
         key in mergedParent.parameterLocks &&
-        mergedParent.parameterLocks[key] !== candidateValue
+        canonicalize(mergedParent.parameterLocks[key]) !== canonicalize(candidateValue)
       ) {
         throw new AmapError(
           AmapErrorCode.CONSTRAINT_RELAXATION,

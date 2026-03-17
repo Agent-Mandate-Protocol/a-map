@@ -208,4 +208,41 @@ describe('assertConstraintsNotRelaxed — allowedActions', () => {
       ),
     ).not.toThrow()
   })
+
+  // Logic A: deep equality for parameterLocks values
+  it('passes when parameterLocks object value is structurally identical', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { parameterLocks: { filter: { id: 123 } } },
+        { parameterLocks: { filter: { id: 123 } } },
+      ),
+    ).not.toThrow()
+  })
+
+  it('throws CONSTRAINT_RELAXATION when parameterLocks object value differs', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { parameterLocks: { filter: { id: 123 } } },
+        { parameterLocks: { filter: { id: 999 } } },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
+
+  it('passes when parameterLocks array value is structurally identical', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { parameterLocks: { tags: ['a', 'b'] } },
+        { parameterLocks: { tags: ['a', 'b'] } },
+      ),
+    ).not.toThrow()
+  })
+
+  it('throws CONSTRAINT_RELAXATION when parameterLocks array value differs', () => {
+    expect(() =>
+      assertConstraintsNotRelaxed(
+        { parameterLocks: { tags: ['a', 'b'] } },
+        { parameterLocks: { tags: ['a', 'c'] } },
+      ),
+    ).toThrow(expect.objectContaining({ code: AmapErrorCode.CONSTRAINT_RELAXATION }))
+  })
 })

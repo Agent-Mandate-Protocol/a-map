@@ -146,7 +146,7 @@ export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
       }
     }
     for (const [key, lockedValue] of Object.entries(allLocks)) {
-      if (opts.requestParams[key] !== lockedValue) {
+      if (canonicalize(opts.requestParams[key]) !== canonicalize(lockedValue)) {
         throw new AmapError(
           AmapErrorCode.PARAMETER_LOCK_VIOLATION,
           `Parameter "${key}" must be "${String(lockedValue)}" (locked by mandate), got "${String(opts.requestParams[key])}"`,
