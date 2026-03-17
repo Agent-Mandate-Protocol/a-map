@@ -1,8 +1,7 @@
 SKILLS_DIR := skills
 
 .PHONY: build test typecheck lint clean \
-        skills-inspect skills-publish skills-search \
-        skill-verify skill-sign skill-delegate
+        skill-inspect skill-publish skill-search
 
 # ── Dev ──────────────────────────────────────────────────────────────────────
 
@@ -21,35 +20,19 @@ lint:
 clean:
 	pnpm clean
 
-# ── ClawHub skills ───────────────────────────────────────────────────────────
+# ── ClawHub skill ─────────────────────────────────────────────────────────────
 
-## Inspect all three skills (shows what the server will parse — run before publish)
-skills-inspect:
-	clawhub inspect $(SKILLS_DIR)/amap-verify
-	clawhub inspect $(SKILLS_DIR)/amap-sign
-	clawhub inspect $(SKILLS_DIR)/amap-delegate
+## Inspect the skill (shows what the server will parse — run before publish)
+skill-inspect:
+	clawhub inspect $(SKILLS_DIR)/agent-mandate-protocol
 
-## Publish all three skills to ClawHub
-skills-publish:
-	clawhub publish $(SKILLS_DIR)/amap-verify
-	clawhub publish $(SKILLS_DIR)/amap-sign
-	clawhub publish $(SKILLS_DIR)/amap-delegate
+## Publish the skill to ClawHub
+skill-publish:
+	clawhub publish $(SKILLS_DIR)/agent-mandate-protocol --slug agent-mandate-protocol --name "Agent Mandate Protocol" --version 1.0.0
 
-## Search ClawHub to confirm skills are indexed after publishing
-skills-search:
+## Search ClawHub to confirm the skill is indexed after publishing
+skill-search:
 	clawhub search 'verify agent identity'
 	clawhub search 'sign agent request'
 	clawhub search 'delegate permissions to sub-agent'
-
-## Publish individual skills
-skill-verify:
-	clawhub inspect $(SKILLS_DIR)/amap-verify
-	clawhub publish $(SKILLS_DIR)/amap-verify
-
-skill-sign:
-	clawhub inspect $(SKILLS_DIR)/amap-sign
-	clawhub publish $(SKILLS_DIR)/amap-sign
-
-skill-delegate:
-	clawhub inspect $(SKILLS_DIR)/amap-delegate
-	clawhub publish $(SKILLS_DIR)/amap-delegate
+	clawhub search 'agent authorization A-MAP'
