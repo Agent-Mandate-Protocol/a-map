@@ -61,7 +61,7 @@ export function evaluatePolicy(
  *
  * Match rules (in order):
  * 1. '*' bare wildcard → matches anything
- * 2. Pattern contains '*' or '?' → glob regex match
+ * 2. Pattern contains '*' or '?' → linear-time iterative glob match (no regex, no backtracking)
  * 3. No wildcards → exact match OR prefix at word boundary (pattern + ' ' prefix of value)
  *
  * Examples:
@@ -75,12 +75,27 @@ export function matchesGlob(value: string, pattern: string): boolean {
   if (pattern === '*') return true
 
   if (pattern.includes('*') || pattern.includes('?')) {
-    // Convert glob to regex: escape regex specials, then replace * and ?
-    const escaped = pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.')
-    return new RegExp(`^${escaped}$`).test(value)
+    // Iterative glob match — O(m×n) worst case, no backtracking, immune to ReDoS.
+    // Tracks the last '*' position in the pattern (starPi) and the corresponding
+    // value position (starVi) so we can retry with the '*' consuming one more char.
+    let pi = 0, vi = 0
+    let starPi = -1, starVi = -1
+
+    while (vi < value.length) {
+      if (pi < pattern.length && (pattern[pi] === '?' || pattern[pi] === value[vi])) {
+        pi++; vi++
+      } else if (pi < pattern.length && pattern[pi] === '*') {
+        starPi = pi; starVi = vi; pi++   // mark '*', try consuming 0 chars first
+      } else if (starPi !== -1) {
+        pi = starPi + 1; vi = ++starVi  // backtrack: '*' consumes one more char
+      } else {
+        return false
+      }
+    }
+
+    // Consume any trailing '*' wildcards
+    while (pi < pattern.length && pattern[pi] === '*') pi++
+    return pi === pattern.length
   }
 
   // Exact match or word-boundary prefix match

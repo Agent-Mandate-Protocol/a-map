@@ -26,6 +26,25 @@ describe('matchesGlob()', () => {
   it('does not match partial strings without wildcard', () => {
     expect(matchesGlob('rm -rf /home', 'rm -rf /')).toBe(false)
   })
+
+  it('handles multiple consecutive wildcards', () => {
+    expect(matchesGlob('abc', '***')).toBe(true)
+    expect(matchesGlob('', '***')).toBe(true)
+    expect(matchesGlob('anything here', 'any*here')).toBe(true)
+    expect(matchesGlob('anything here', 'any*there')).toBe(false)
+  })
+
+  it('is immune to ReDoS — adversarial pattern completes instantly', () => {
+    // Pattern like 'a*a*a*a*a*a*b' against a long string of 'a's is catastrophic
+    // for backtracking regex engines. With the iterative algorithm it is O(m×n).
+    const value = 'a'.repeat(30)
+    const pattern = ('a*').repeat(10) + 'b'
+    const start = Date.now()
+    const result = matchesGlob(value, pattern)
+    const elapsed = Date.now() - start
+    expect(result).toBe(false)
+    expect(elapsed).toBeLessThan(50) // must complete well under 50ms
+  })
 })
 
 describe('evaluatePolicy()', () => {

@@ -47,4 +47,19 @@ describe('canonicalize (JCS RFC 8785)', () => {
     expect(canonicalize('hello')).toBe('"hello"')
     expect(canonicalize('say "hi"')).toBe('"say \\"hi\\""')
   })
+
+  it('handles deeply nested objects up to the depth limit', () => {
+    // Build a 32-level deep object — should succeed
+    let nested: unknown = 'leaf'
+    for (let i = 0; i < 32; i++) nested = { v: nested }
+    expect(() => canonicalize(nested)).not.toThrow()
+  })
+
+  it('throws RangeError when nesting exceeds 32 levels', () => {
+    // Build a 33-level deep object — should throw
+    let nested: unknown = 'leaf'
+    for (let i = 0; i < 33; i++) nested = { v: nested }
+    expect(() => canonicalize(nested)).toThrow(RangeError)
+    expect(() => canonicalize(nested)).toThrow('maximum depth')
+  })
 })

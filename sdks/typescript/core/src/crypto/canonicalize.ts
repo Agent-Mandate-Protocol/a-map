@@ -14,17 +14,28 @@
  * identical output for the same object regardless of key insertion order —
  * otherwise signatures will not verify across implementations or runtimes.
  */
-export function canonicalize(value: unknown): string {
+
+const MAX_DEPTH = 32
+
+function _canonicalize(value: unknown, depth: number): string {
+  if (depth > MAX_DEPTH) {
+    throw new RangeError(`canonicalize: object nesting exceeds maximum depth of ${MAX_DEPTH}`)
+  }
+
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value)
   }
 
   if (Array.isArray(value)) {
-    return '[' + value.map(canonicalize).join(',') + ']'
+    return '[' + value.map(v => _canonicalize(v, depth + 1)).join(',') + ']'
   }
 
   const obj = value as Record<string, unknown>
   const keys = Object.keys(obj).sort()
-  const pairs = keys.map(k => JSON.stringify(k) + ':' + canonicalize(obj[k]))
+  const pairs = keys.map(k => JSON.stringify(k) + ':' + _canonicalize(obj[k], depth + 1))
   return '{' + pairs.join(',') + '}'
+}
+
+export function canonicalize(value: unknown): string {
+  return _canonicalize(value, 0)
 }
