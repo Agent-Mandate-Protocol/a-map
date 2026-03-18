@@ -1,9 +1,7 @@
 {
-  "name": "@agentmandateprotocol/openclaw",
+  "id": "agentmandateprotocol-openclaw",
+  "name": "Agent Mandate Protocol",
   "version": "1.0.0",
   "description": "Add A-MAP agent authorization to OpenClaw — mandate chain verification and request signing as native plugin capabilities",
-  "main": "./dist/plugin.js",
-  "api_version": "1",
-  "tools": ["amap_issue", "amap_register_session"],
-  "hooks": ["before_tool_call"]
+  "main": "./dist/plugin.js"
 }

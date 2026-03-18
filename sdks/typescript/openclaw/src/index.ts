@@ -1,4 +1,4 @@
-export { default as register, createAmapPlugin } from './plugin.js'
+export { default as amapPlugin, createAmapPlugin } from './plugin.js'
 export type { AmapPluginOptions } from './plugin.js'
 
 export { SessionMandateStore } from './session-store.js'
@@ -8,3 +8,5 @@ export type { HookContext, HookOptions } from './hook.js'
 
 export { amapRegisterSessionToolDefinition, handleAmapRegisterSession } from './tools/amap-register-session.js'
 export { amapIssueToolDefinition, handleAmapIssue } from './tools/amap-issue.js'
+export { amapKeygenToolDefinition, handleAmapKeygen } from './tools/amap-keygen.js'
+export { amapVerifyToolDefinition, handleAmapVerify } from './tools/amap-verify.js'

@@ -11,7 +11,7 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "openclaw.plugin.json"],
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "test": "vitest run",
@@ -26,5 +26,8 @@
     "typescript": "*",
     "vitest": "*"
   },
-  "engines": { "node": ">=18.0.0" }
+  "engines": { "node": ">=18.0.0" },
+  "openclaw": {
+    "extensions": ["./dist/plugin.js"]
+  }
 }

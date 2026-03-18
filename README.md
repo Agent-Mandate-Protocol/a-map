@@ -41,7 +41,7 @@ Three invariants are enforced cryptographically across multi-hop chains:
 | `@agentmandateprotocol/core` | Cryptographic primitives: `keygen`, `issue`, `delegate`, `verify`, `signRequest`, `verifyRequest`. Zero runtime dependencies. Works fully offline. | [sdks/typescript/core](sdks/typescript/core/README.md) |
 | `@agentmandateprotocol/middleware` | Express and Hono middleware for HTTP APIs. Drop-in mandate enforcement for any endpoint. Also includes `AmapFetchGuard` — client-side enforcement without server cooperation. | [sdks/typescript/middleware](sdks/typescript/middleware/README.md) |
 | `@agentmandateprotocol/mcp` | MCP integration: `AmapGuard` (client-side, any MCP server) and `amapProtect()` (server-side, wraps any MCP tool handler). | [sdks/typescript/mcp](sdks/typescript/mcp/README.md) |
-| `@agentmandateprotocol/openclaw` | OpenClaw plugin. Installs a `before_tool_call` hook that mandate-verifies every tool call before it reaches your handler. | [sdks/typescript/openclaw](sdks/typescript/openclaw/README.md) |
+| `@agentmandateprotocol/openclaw` | OpenClaw plugin. Registers four tools: `amap_keygen`, `amap_issue`, `amap_verify`, `amap_register_session`. Also exports `createAmapPlugin()` with a `beforeToolCall` hook for custom frameworks that expose tool interception. | [sdks/typescript/openclaw](sdks/typescript/openclaw/README.md) |
 
 ---
 

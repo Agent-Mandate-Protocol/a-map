@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { amap, LocalKeyResolver } from '@agentmandateprotocol/core'
 import {
-  register,
+  amapPlugin,
   createAmapPlugin,
   SessionMandateStore,
   beforeToolCall,
@@ -9,10 +9,17 @@ import {
   handleAmapRegisterSession,
   amapIssueToolDefinition,
   handleAmapIssue,
+  amapKeygenToolDefinition,
+  handleAmapKeygen,
+  amapVerifyToolDefinition,
+  handleAmapVerify,
 } from './index.js'
 
 describe('@agentmandateprotocol/openclaw exports', () => {
-  it('exports register (default OpenClaw entry point)', () => expect(register).toBeTypeOf('function'))
+  it('exports amapPlugin (default OpenClaw entry point)', () => {
+    expect(amapPlugin.id).toBe('agentmandateprotocol-openclaw')
+    expect(amapPlugin.register).toBeTypeOf('function')
+  })
   it('exports createAmapPlugin', () => expect(createAmapPlugin).toBeTypeOf('function'))
   it('exports SessionMandateStore', () => expect(SessionMandateStore).toBeTypeOf('function'))
   it('exports beforeToolCall', () => expect(beforeToolCall).toBeTypeOf('function'))
@@ -24,15 +31,25 @@ describe('@agentmandateprotocol/openclaw exports', () => {
     expect(amapIssueToolDefinition.name).toBe('amap_issue')
   })
   it('exports handleAmapIssue', () => expect(handleAmapIssue).toBeTypeOf('function'))
+  it('exports amapKeygenToolDefinition', () => {
+    expect(amapKeygenToolDefinition.name).toBe('amap_keygen')
+  })
+  it('exports handleAmapKeygen', () => expect(handleAmapKeygen).toBeTypeOf('function'))
+  it('exports amapVerifyToolDefinition', () => {
+    expect(amapVerifyToolDefinition.name).toBe('amap_verify')
+  })
+  it('exports handleAmapVerify', () => expect(handleAmapVerify).toBeTypeOf('function'))
 })
 
 describe('createAmapPlugin()', () => {
   it('returns a valid plugin object', () => {
     const plugin = createAmapPlugin()
     expect(plugin.name).toBe('@agentmandateprotocol/openclaw')
-    expect(plugin.tools).toHaveLength(2)
+    expect(plugin.tools).toHaveLength(4)
     expect(plugin.tools.map(t => t.name)).toContain('amap_issue')
     expect(plugin.tools.map(t => t.name)).toContain('amap_register_session')
+    expect(plugin.tools.map(t => t.name)).toContain('amap_keygen')
+    expect(plugin.tools.map(t => t.name)).toContain('amap_verify')
     expect(plugin.beforeToolCall).toBeTypeOf('function')
     expect(plugin.handleTool).toBeTypeOf('function')
   })
@@ -92,52 +109,19 @@ describe('createAmapPlugin()', () => {
   })
 })
 
-describe('register(api) — OpenClaw plugin entry point', () => {
+describe('amapPlugin.register(api) — OpenClaw plugin entry point', () => {
   it('calls api.registerTool for amap_issue and amap_register_session', () => {
     const registeredTools: string[] = []
-    const hookNames: string[] = []
     const mockApi = {
       config: {},
       logger: { warn: () => {} },
       registerTool: (def: { name: string }) => { registeredTools.push(def.name) },
-      on: (event: string) => { hookNames.push(event) },
     }
-    register(mockApi as never)
+    amapPlugin.register(mockApi as never)
     expect(registeredTools).toContain('amap_issue')
     expect(registeredTools).toContain('amap_register_session')
-    expect(hookNames).toContain('before_tool_call')
-  })
-
-  it('before_tool_call hook returns { abort: false } for amap_register_session', async () => {
-    let hookHandler: (e: unknown, ctx: unknown) => Promise<{ abort: boolean }>
-    const mockApi = {
-      config: {},
-      logger: { warn: () => {} },
-      registerTool: () => {},
-      on: (_: string, h: typeof hookHandler) => { hookHandler = h },
-    }
-    register(mockApi as never)
-    const result = await hookHandler!(
-      {},
-      { toolName: 'amap_register_session', sessionKey: 'session-1', args: {} },
-    )
-    expect(result).toEqual({ abort: false })
-  })
-
-  it('before_tool_call hook returns { abort: true } when no mandate registered', async () => {
-    let hookHandler: (e: unknown, ctx: unknown) => Promise<{ abort: boolean; error?: string }>
-    const mockApi = {
-      config: {},
-      logger: { warn: () => {} },
-      registerTool: () => {},
-      on: (_: string, h: typeof hookHandler) => { hookHandler = h },
-    }
-    register(mockApi as never)
-    const result = await hookHandler!(
-      {},
-      { toolName: 'some_tool', sessionKey: 'session-1', args: {} },
-    )
-    expect(result.abort).toBe(true)
-    expect(result.error).toContain('BROKEN_CHAIN')
+    expect(registeredTools).toContain('amap_keygen')
+    expect(registeredTools).toContain('amap_verify')
+    expect(registeredTools).toHaveLength(4)
   })
 })

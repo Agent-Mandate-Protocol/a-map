@@ -28,7 +28,7 @@ metadata:
       env:
         - AMAP_PRIVATE_KEY
         - SENDER_PUBKEY
-    homepage: https://github.com/Agent-Mandate-Protocol/a-map/tree/main/sdks/typescript/openclaw
+    homepage: https://github.com/Agent-Mandate-Protocol/a-map
 ---
 
 # A-MAP Skill
