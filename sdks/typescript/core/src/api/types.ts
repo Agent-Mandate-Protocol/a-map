@@ -50,6 +50,12 @@ export interface VerifyOptions {
    * DID of the agent presenting the chain. If omitted, no delegate check is performed.
    */
   expectedDelegate?: string
+  /**
+   * DID of the human principal expected at the chain root. If omitted, no principal check
+   * is performed. Use in multi-tenant gateways to ensure the chain was authorized by a
+   * specific human, not just any valid principal.
+   */
+  expectedPrincipal?: string
   /** Key resolver for DID → public key resolution. */
   keyResolver?: KeyResolver
   /** Revocation checker. Optional — omit to skip revocation checks. */
@@ -104,6 +110,12 @@ export interface VerifyRequestOptions {
    * If absent, no permission check is performed.
    */
   expectedPermission?: string
+  /**
+   * DID of the human principal expected at the chain root. If omitted, no principal check
+   * is performed. Use in multi-tenant gateways to ensure the chain was authorized by a
+   * specific human, not just any valid principal.
+   */
+  expectedPrincipal?: string
   /**
    * Action string for allow/deny policy evaluation.
    * If provided, the action is evaluated against deniedActions/allowedActions in the chain.

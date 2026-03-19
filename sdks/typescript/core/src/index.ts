@@ -28,6 +28,7 @@ export const amap = {
 
 // Named exports for consumers who prefer them
 export { keygen, computeDID, register, issue, delegate, verify, signRequest, verifyRequest, revoke }
+export { MAX_CHAIN_DEPTH } from './api/verify.js'
 
 // Crypto primitives (T2)
 export { canonicalize } from './crypto/canonicalize.js'

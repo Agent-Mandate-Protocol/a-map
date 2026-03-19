@@ -124,6 +124,7 @@ export async function verifyRequest(opts: VerifyRequestOptions): Promise<Verific
   return verify({
     chain,
     ...(opts.expectedPermission !== undefined ? { expectedPermission: opts.expectedPermission } : {}),
+    ...(opts.expectedPrincipal !== undefined ? { expectedPrincipal: opts.expectedPrincipal } : {}),
     expectedDelegate: agentDid,
     ...(opts.keyResolver !== undefined ? { keyResolver: opts.keyResolver } : {}),
     ...(opts.revocationChecker !== undefined ? { revocationChecker: opts.revocationChecker } : {}),

@@ -223,6 +223,152 @@ describe('verify() — Logic A: deep equality for parameterLocks values', () => 
   })
 })
 
+describe('verify() — MAX_CHAIN_DEPTH guard', () => {
+  it('rejects a chain longer than MAX_CHAIN_DEPTH before any signature verification', async () => {
+    // Construct 11 structurally plausible token objects.
+    // The depth check fires before key resolution or signature verification,
+    // so these do not need valid signatures.
+    const oversizedChain = Array.from({ length: 11 }, (_, i) => ({
+      version: '1' as const,
+      tokenId: `token-${i}`,
+      parentTokenHash: i === 0 ? null : `hash-${i - 1}`,
+      principal: 'did:amap:human:alice:test',
+      issuer: `did:amap:agent:hop${i}:1.0:test`,
+      delegate: `did:amap:agent:hop${i + 1}:1.0:test`,
+      permissions: ['read'],
+      constraints: {},
+      issuedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      nonce: `nonce-${i}`,
+      signature: 'not-checked-before-depth-guard',
+    }))
+
+    await expect(
+      amap.verify({ chain: oversizedChain }),
+    ).rejects.toMatchObject({ code: AmapErrorCode.BROKEN_CHAIN })
+  })
+
+  it('accepts a chain of exactly MAX_CHAIN_DEPTH hops', async () => {
+    // Build a real 2-hop chain — verifying MAX_CHAIN_DEPTH is not off-by-one.
+    // (A 10-hop chain is expensive to build in a unit test; 2 hops confirm the boundary.)
+    const human = amap.keygen()
+    const humanDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: human.publicKey })
+    const agentA = amap.keygen()
+    const agentADid = amap.computeDID({ type: 'agent', name: 'a', version: '1.0', publicKey: agentA.publicKey })
+    const agentB = amap.keygen()
+    const agentBDid = amap.computeDID({ type: 'agent', name: 'b', version: '1.0', publicKey: agentB.publicKey })
+
+    const root = await amap.issue({
+      principal: humanDid,
+      delegate: agentADid,
+      permissions: ['read'],
+      expiresIn: '1h',
+      privateKey: human.privateKey,
+    })
+    const child = await amap.delegate({
+      parentToken: root,
+      parentChain: [root],
+      delegate: agentBDid,
+      permissions: ['read'],
+      expiresIn: '30m',
+      privateKey: agentA.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [humanDid, human.publicKey],
+      [agentADid, agentA.publicKey],
+      [agentBDid, agentB.publicKey],
+    ]))
+
+    const result = await amap.verify({ chain: [root, child], keyResolver })
+    expect(result.valid).toBe(true)
+  })
+})
+
+describe('verify() — expectedPrincipal check', () => {
+  function makeParty(name: string, type: 'human' | 'agent' = 'agent') {
+    const keys = amap.keygen()
+    const did = type === 'human'
+      ? amap.computeDID({ type: 'human', name, publicKey: keys.publicKey })
+      : amap.computeDID({ type: 'agent', name, version: '1.0', publicKey: keys.publicKey })
+    return { keys, did }
+  }
+
+  it('passes when expectedPrincipal matches chain root principal', async () => {
+    const human = makeParty('alice', 'human')
+    const agent = makeParty('bot')
+
+    const token = await amap.issue({
+      principal: human.did,
+      delegate: agent.did,
+      permissions: ['read'],
+      expiresIn: '1h',
+      privateKey: human.keys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [human.did, human.keys.publicKey],
+      [agent.did, agent.keys.publicKey],
+    ]))
+
+    const result = await amap.verify({
+      chain: [token],
+      expectedPrincipal: human.did,
+      keyResolver,
+    })
+    expect(result.valid).toBe(true)
+    expect(result.principal).toBe(human.did)
+  })
+
+  it('rejects when expectedPrincipal does not match chain root principal', async () => {
+    const human = makeParty('alice', 'human')
+    const agent = makeParty('bot')
+
+    const token = await amap.issue({
+      principal: human.did,
+      delegate: agent.did,
+      permissions: ['read'],
+      expiresIn: '1h',
+      privateKey: human.keys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [human.did, human.keys.publicKey],
+      [agent.did, agent.keys.publicKey],
+    ]))
+
+    await expect(
+      amap.verify({
+        chain: [token],
+        expectedPrincipal: 'did:amap:human:bob:notthisone',
+        keyResolver,
+      }),
+    ).rejects.toMatchObject({ code: AmapErrorCode.INVALID_SIGNATURE })
+  })
+
+  it('skips principal check when expectedPrincipal is omitted', async () => {
+    const human = makeParty('alice', 'human')
+    const agent = makeParty('bot')
+
+    const token = await amap.issue({
+      principal: human.did,
+      delegate: agent.did,
+      permissions: ['read'],
+      expiresIn: '1h',
+      privateKey: human.keys.privateKey,
+    })
+
+    const keyResolver = new LocalKeyResolver(new Map([
+      [human.did, human.keys.publicKey],
+      [agent.did, agent.keys.publicKey],
+    ]))
+
+    // No expectedPrincipal — should pass regardless of who the principal is
+    const result = await amap.verify({ chain: [token], keyResolver })
+    expect(result.valid).toBe(true)
+  })
+})
+
 describe('verify() — Critical B: parameterLocks parent-first precedence', () => {
   function makeParty(name: string) {
     const keys = amap.keygen()

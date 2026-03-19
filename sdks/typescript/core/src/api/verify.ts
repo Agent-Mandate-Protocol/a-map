@@ -10,10 +10,23 @@ import type { VerifyOptions } from './types.js'
 import { assertConstraintsNotRelaxed } from './validate-constraints.js'
 import { evaluatePolicy } from './policy.js'
 
+/**
+ * Maximum number of hops permitted in a mandate chain.
+ * Chains longer than this are rejected before any cryptographic work begins,
+ * preventing CPU-exhaustion via crafted deep chains (denial-of-service).
+ */
+export const MAX_CHAIN_DEPTH = 10
+
 export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
   const { chain } = opts
   if (chain.length === 0) {
     throw new AmapError(AmapErrorCode.BROKEN_CHAIN, 'Chain must contain at least one token')
+  }
+  if (chain.length > MAX_CHAIN_DEPTH) {
+    throw new AmapError(
+      AmapErrorCode.BROKEN_CHAIN,
+      `Chain length ${chain.length} exceeds maximum allowed depth of ${MAX_CHAIN_DEPTH}`,
+    )
   }
 
   const now = new Date()
@@ -121,6 +134,16 @@ export async function verify(opts: VerifyOptions): Promise<VerificationResult> {
     throw new AmapError(
       AmapErrorCode.INVALID_SIGNATURE,
       `Chain is delegated to ${leafToken.delegate}, not ${opts.expectedDelegate}`,
+    )
+  }
+
+  // Step 9b: Principal check — optional
+  // Useful in multi-tenant gateways: ensures the chain was rooted by a specific human,
+  // not just any valid principal.
+  if (opts.expectedPrincipal !== undefined && chain[0]!.principal !== opts.expectedPrincipal) {
+    throw new AmapError(
+      AmapErrorCode.INVALID_SIGNATURE,
+      `Chain is rooted to principal ${chain[0]!.principal}, not ${opts.expectedPrincipal}`,
     )
   }
 
