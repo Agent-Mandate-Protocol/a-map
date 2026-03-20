@@ -99,7 +99,40 @@ describe('amapVerifier() — Express middleware', () => {
     expect((getBody() as { error: string }).error).toBe('PERMISSION_INFLATION')
   })
 
+  it('warns when req.body is a parsed object and a signature header is present', async () => {
+    const { headers, keyResolver } = await makeSignedRequest(['read_email'])
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    // Simulate express.json() having already run — body is a parsed object
+    const req = { headers, method: 'GET', path: '/api/data', body: { key: 'value' } }
+    const { res } = mockRes()
+    const next = vi.fn()
+
+    const middleware = amapVerifier({ keyResolver, nonceStore: new InMemoryNonceStore() })
+    await middleware(req, res, next)
+
+    expect(warnSpy).toHaveBeenCalledOnce()
+    expect(warnSpy.mock.calls[0]![0]).toContain('express.json()')
+    warnSpy.mockRestore()
+  })
+
+  it('does not warn when req.body is a string', async () => {
+    const { headers, keyResolver } = await makeSignedRequest(['read_email'])
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const req = { headers, method: 'GET', path: '/api/data', body: 'raw body string' }
+    const { res } = mockRes()
+    const next = vi.fn()
+
+    const middleware = amapVerifier({ keyResolver, nonceStore: new InMemoryNonceStore() })
+    await middleware(req, res, next)
+
+    expect(warnSpy).not.toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
   it('passes requestParams from req.body object for parameterLock checking', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const issuerKeys = amap.keygen()
     const agentKeys = amap.keygen()
     const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
@@ -135,5 +168,6 @@ describe('amapVerifier() — Express middleware', () => {
 
     expect(getStatus()).toBe(401)
     expect((getBody() as { error: string }).error).toBe('PARAMETER_LOCK_VIOLATION')
+    vi.restoreAllMocks()
   })
 })

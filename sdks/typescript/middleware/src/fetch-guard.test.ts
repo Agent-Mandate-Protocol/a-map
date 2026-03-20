@@ -373,4 +373,105 @@ describe('AmapFetchGuard', () => {
       verifySpy.mockRestore()
     })
   })
+
+  describe('baseUrl option', () => {
+    it('uses baseUrl to resolve relative URLs for domain checks', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        allowedDomains: ['api.example.com'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        baseUrl: 'https://api.example.com',
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      // relative URL — resolved against baseUrl, hostname becomes api.example.com
+      await guard.fetch('/data')
+      expect(fetch).toHaveBeenCalledOnce()
+    })
+
+    it('blocks relative URLs when resolved host is not in allowedDomains', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        allowedDomains: ['api.example.com'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        // no baseUrl → defaults to http://localhost
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await expect(guard.fetch('/data'))
+        .rejects.toMatchObject({ code: 'PERMISSION_INFLATION' })
+    })
+  })
+
+  describe('auto-signing (privateKey option)', () => {
+    it('attaches X-AMAP-* headers when privateKey is provided', async () => {
+      const issuerKeys = amap.keygen()
+      const agentKeys = amap.keygen()
+      const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
+      const agentDid = amap.computeDID({ type: 'agent', name: 'agent', version: '1.0', publicKey: agentKeys.publicKey })
+
+      const token = await amap.issue({
+        principal: issuerDid,
+        delegate: agentDid,
+        permissions: ['api:read'],
+        expiresIn: '1h',
+        privateKey: issuerKeys.privateKey,
+      })
+
+      const keyResolver = new LocalKeyResolver(new Map([
+        [issuerDid, issuerKeys.publicKey],
+        [agentDid, agentKeys.publicKey],
+      ]))
+
+      const capturedInit: RequestInit[] = []
+      const mockFetchCapturing = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        capturedInit.push(init)
+        return Promise.resolve(new Response('ok', { status: 200 }))
+      })
+
+      const guard = new AmapFetchGuard(mockFetchCapturing, {
+        mandate: [token],
+        keyResolver,
+        privateKey: agentKeys.privateKey,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await guard.fetch('https://api.example.com/data')
+
+      const headers = capturedInit[0]!.headers as Record<string, string>
+      expect(headers['X-AMAP-Signature']).toBeDefined()
+      expect(headers['X-AMAP-Mandate']).toBeDefined()
+      expect(headers['X-AMAP-Timestamp']).toBeDefined()
+      expect(headers['X-AMAP-Nonce']).toBeDefined()
+      expect(headers['X-AMAP-Agent-DID']).toBe(agentDid)
+    })
+
+    it('does not attach A-MAP headers when no privateKey is provided', async () => {
+      const { token, keyResolver } = await makeMandate(['api:read'])
+      const capturedInit: RequestInit[] = []
+      const mockFetchCapturing = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        capturedInit.push(init ?? {})
+        return Promise.resolve(new Response('ok', { status: 200 }))
+      })
+
+      const guard = new AmapFetchGuard(mockFetchCapturing, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await guard.fetch('https://api.example.com/data')
+
+      const headers = (capturedInit[0]?.headers ?? {}) as Record<string, string>
+      expect(headers['X-AMAP-Signature']).toBeUndefined()
+    })
+  })
 })

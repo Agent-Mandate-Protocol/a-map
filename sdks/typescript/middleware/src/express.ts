@@ -94,6 +94,18 @@ export function amapVerifier(opts: AmapVerifierOptions = {}) {
 
       // Pass raw body if available as string or Buffer (set by express.text() or express.raw()).
       // Parsed objects (express.json()) are omitted — use express.text() when body verification matters.
+      // Warn when express.json() appears to have already run: body is a plain object but a signature
+      // header is present, meaning the raw bytes are gone and body integrity cannot be verified.
+      const bodyIsParsedObject =
+        req.body !== null &&
+        typeof req.body === 'object' &&
+        !Buffer.isBuffer(req.body)
+      if (bodyIsParsedObject && amapHeaders['X-AMAP-Signature']) {
+        console.warn(
+          '[A-MAP] amapVerifier: req.body is a parsed object — body integrity cannot be verified. ' +
+            'Place amapVerifier() before express.json() and use express.text() for routes that require body signing.',
+        )
+      }
       const rawBody =
         typeof req.body === 'string'
           ? req.body

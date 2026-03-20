@@ -48,6 +48,24 @@ export interface AmapFetchGuardOptions {
   keyResolver?: KeyResolver
   /** Called for every request — allowed or blocked. Use for audit logging. */
   onAudit?: (entry: FetchAuditEntry) => void
+  /**
+   * Base URL used to resolve relative request URLs.
+   * Only relevant when fetch() is called with a relative path like '/api/data'.
+   * Defaults to 'http://localhost'. For allowedDomains/deniedDomains checks to work
+   * correctly with relative URLs, set this to the actual target origin.
+   *
+   * @example 'https://api.example.com'
+   */
+  baseUrl?: string
+  /**
+   * Agent private key (base64url Ed25519). When provided, the guard automatically
+   * signs every outgoing request with X-AMAP-* headers so the receiving server can
+   * verify both the mandate chain and the request signature via verifyRequest().
+   *
+   * The mandate chain is attached as X-AMAP-Mandate and the request is signed over
+   * method + path + body + timestamp + nonce.
+   */
+  privateKey?: string
 }
 
 /**
@@ -102,7 +120,7 @@ export class AmapFetchGuard {
   async fetch(url: string | URL, init?: RequestInit): Promise<Response> {
     const mandate = await this.getVerifiedMandate()
     const method = (init?.method ?? 'GET').toUpperCase()
-    const parsed = new URL(url instanceof URL ? url.href : url, 'http://localhost')
+    const parsed = new URL(url instanceof URL ? url.href : url, this.options.baseUrl ?? 'http://localhost')
     const path = parsed.pathname
     const hostname = parsed.hostname
 
@@ -169,6 +187,28 @@ export class AmapFetchGuard {
         )
       }
       throw new AmapError(constraintCode, constraintViolation!)
+    }
+
+    // Auto-sign the request if a private key is configured
+    if (this.options.privateKey !== undefined) {
+      const bodyForSigning =
+        typeof init?.body === 'string'
+          ? init.body
+          : init?.body instanceof Uint8Array
+            ? Buffer.from(init.body)
+            : undefined
+      const signedHeaders = await amap.signRequest({
+        method,
+        path,
+        ...(bodyForSigning !== undefined ? { body: bodyForSigning } : {}),
+        privateKey: this.options.privateKey,
+        mandateChain: this.options.mandate,
+      })
+      const mergedInit: RequestInit = {
+        ...init,
+        headers: { ...(init?.headers as Record<string, string> | undefined), ...signedHeaders },
+      }
+      return this.fetchFn(url, mergedInit)
     }
 
     return this.fetchFn(url, init)
