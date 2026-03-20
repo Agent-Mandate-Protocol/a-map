@@ -7,6 +7,29 @@ function mockFetch(status = 200) {
   return vi.fn().mockResolvedValue(new Response('ok', { status }))
 }
 
+async function makeMandateWithConstraints(permissions: string[], constraints: Record<string, unknown>) {
+  const issuerKeys = amap.keygen()
+  const agentKeys = amap.keygen()
+  const issuerDid = amap.computeDID({ type: 'human', name: 'alice', publicKey: issuerKeys.publicKey })
+  const agentDid = amap.computeDID({ type: 'agent', name: 'agent', version: '1.0', publicKey: agentKeys.publicKey })
+
+  const token = await amap.issue({
+    principal: issuerDid,
+    delegate: agentDid,
+    permissions,
+    constraints: constraints as Parameters<typeof amap.issue>[0]['constraints'],
+    expiresIn: '1h',
+    privateKey: issuerKeys.privateKey,
+  })
+
+  const keyResolver = new LocalKeyResolver(new Map([
+    [issuerDid, issuerKeys.publicKey],
+    [agentDid, agentKeys.publicKey],
+  ]))
+
+  return { token, keyResolver, issuerDid }
+}
+
 async function makeMandate(permissions: string[]) {
   const issuerKeys = amap.keygen()
   const agentKeys = amap.keygen()
@@ -161,6 +184,172 @@ describe('AmapFetchGuard', () => {
       expect(auditLog[0]!.method).toBe('GET')
       expect(auditLog[0]!.path).toBe('/api/emails')
       expect(auditLog[0]!.principal).toBe(issuerDid)
+    })
+  })
+
+  describe('constraint enforcement', () => {
+    it('blocks non-GET/HEAD requests when readOnly is true', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:write'], { readOnly: true })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:write'] } },
+      })
+
+      await expect(guard.fetch('https://api.example.com/data', { method: 'POST' }))
+        .rejects.toMatchObject({ code: 'PERMISSION_INFLATION' })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('allows GET requests when readOnly is true', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], { readOnly: true })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await guard.fetch('https://api.example.com/data')
+      expect(fetch).toHaveBeenCalledOnce()
+    })
+
+    it('blocks requests to denied domains', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        deniedDomains: ['evil.com', '*.malicious.org'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await expect(guard.fetch('https://evil.com/data'))
+        .rejects.toMatchObject({ code: 'PERMISSION_INFLATION' })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('allows requests to non-denied domains', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        deniedDomains: ['evil.com'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await guard.fetch('https://api.example.com/data')
+      expect(fetch).toHaveBeenCalledOnce()
+    })
+
+    it('blocks requests to domains not in allowedDomains', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        allowedDomains: ['api.example.com'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await expect(guard.fetch('https://other.example.com/data'))
+        .rejects.toMatchObject({ code: 'PERMISSION_INFLATION' })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('allows requests to domains in allowedDomains', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        allowedDomains: ['api.example.com', '*.trusted.io'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await guard.fetch('https://api.example.com/data')
+      expect(fetch).toHaveBeenCalledOnce()
+    })
+
+    it('blocks actions denied by deniedActions policy', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:write'], {
+        deniedActions: ['DELETE'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:write'] } },
+      })
+
+      await expect(guard.fetch('https://api.example.com/data', { method: 'DELETE' }))
+        .rejects.toMatchObject({ code: 'EXPLICIT_DENY' })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('blocks actions not in allowedActions (implicit deny)', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        allowedActions: ['GET', 'HEAD'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await expect(guard.fetch('https://api.example.com/data', { method: 'POST' }))
+        .rejects.toMatchObject({ code: 'EXPLICIT_DENY' })
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('allows actions in allowedActions', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], {
+        allowedActions: ['GET', 'POST'],
+      })
+      const fetch = mockFetch()
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        rules: { '*': { requires: ['api:read'] } },
+      })
+
+      await guard.fetch('https://api.example.com/data', { method: 'POST' })
+      expect(fetch).toHaveBeenCalledOnce()
+    })
+
+    it('constraint violations are logged in audit mode instead of throwing', async () => {
+      const { token, keyResolver } = await makeMandateWithConstraints(['api:read'], { readOnly: true })
+      const fetch = mockFetch()
+      const auditLog: FetchAuditEntry[] = []
+
+      const guard = new AmapFetchGuard(fetch, {
+        mandate: [token],
+        keyResolver,
+        mode: 'audit',
+        rules: { '*': { requires: ['api:read'] } },
+        onAudit: entry => auditLog.push(entry),
+      })
+
+      await guard.fetch('https://api.example.com/data', { method: 'DELETE' })
+      expect(fetch).toHaveBeenCalledOnce()
+      expect(auditLog[0]!.event).toBe('FETCH_BLOCKED')
+      expect(auditLog[0]!.reason).toContain('readOnly')
     })
   })
 
